@@ -1,0 +1,402 @@
+#!/usr/bin/env python
+
+import os, os.path, shutil, subprocess, re, sys
+from collections import OrderedDict, namedtuple
+
+def conda_name_for(product):
+	# return the conda package name for a product
+	try:
+		return eups_to_conda_map[product]
+	except KeyError:
+		pass
+
+	transformed_name = product.replace('_', '-')
+
+	if product in dont_prefix_products:
+		return transformed_name
+	else:
+		return lsst_prefix + transformed_name
+
+# Output directory where the package specs will be generated (and the rebuild script)
+# DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
+output_dir = "recipes/generated"
+
+# Products that already exist in Anaconda; we'll skip building those (but will depend on them)
+internal_products = set("python swig libevent flask twisted scons numpy protobuf matplotlib".split())
+
+# Products to skip alltogether (i.e., don't build, don't make a dependency)
+skip_products = set("anaconda afwdata".split())
+
+# Products that need to be prefixed with our prefix to avoid collisions
+# Products whose Conda name will _not_ be prefixed with out namespace prefix
+dont_prefix_products = set("legacy_configs".split()) | internal_products
+lsst_prefix="lsst-"
+
+# A specific mapping between an EUPS product name and Conda product name. Takes
+# precedence over automatic prefixing.
+eups_to_conda_map = {
+	'legacy_configs':	'legacy_configs',
+	'lsst':			lsst_prefix + 'eups-environment',
+}
+
+# Missing dependencies (these would be transparently installed with pip otherwise)
+missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
+	conda_name_for('pymssql')                  : [('conda', 'cython'), ('pypi', 'setuptools-git')],
+	conda_name_for('palpy')                    : [('conda', 'cython'), ('conda', 'numpy')],
+	conda_name_for('pyfits')                   : [('pypi', 'stsci.distutils')],
+	conda_name_for('sims_catalogs_generation') : [('conda', 'sqlalchemy')],
+	conda_name_for('sims_photUtils')           : [('conda', 'scipy'), ('conda', 'astropy')],
+
+	'stsci.distutils'          : [('pypi', 'd2to1')],	# needed by pyfits
+}
+
+# Parsers for versions that cannot be parsed otherwise
+special_version_parsers = { # map of eups_product_name -> [ parser_function1, parser_function2, ... ]
+}
+
+# The EUPS tags to apply to all products build in this run
+# You should always leave 'current' (unless you know what you're doing)
+# You should also leave 'conda', to allow the user to see right away that this
+# is a Conda-installed and managed EUPS product
+eups_tags = [ 'current', 'conda' ]
+
+# Override sha1s -- these are temporary hacks until the fixes below get merged
+override_gitrev = {
+	'sconsUtils':    'u/mjuric/osx-deployment-target',
+	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',
+	'healpy':        'u/mjuric/sanitize-flags',
+	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',
+	'ctrl_events':   'u/mjuric/osx-compatibility',
+	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'
+}
+
+ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps'])
+
+def report_progress(product):
+	print "%s... " % product,
+	sys.stdout.flush()
+
+def eups_to_conda_version(product, eups_version):
+	# Convert EUPS version string to Conda-compatible pieces
+	#
+	# Conda version has three parts:
+	#	version number: a version number that should be PEP 386 compliant (though Conda's impl. is buggy)
+	#	build string: not used in version comparison, can be anything
+	#	build number: if two versions are equal, build number is used to break the tie
+	# Conda also doesn't like '+' nor '-' in versions
+	#  Furthermore, it parses the version itself as described in the regex at:
+	#     https://github.com/conda/conda/blob/master/conda/verlib.py
+	#  which should be PEP 386 compliant (and very limited). We do our best here to fit into that straitjacket.
+
+	# Split into version + build number
+	if '+' in eups_version:
+		raw_version, buildnum = eups_version.split('+')
+	else:
+		raw_version, buildnum = eups_version, 0
+
+	# Parse EUPS version:
+	# Possibilities to detect:
+	#	<vername>-<tagdist>-g<sha1>		-> (<vername>.<tagdist>, <buildnum>_<sha1>, <buildnum>)
+	#          <vername> can be <version>.lsst<N>	->   <vername>.<N>
+	#	<branch>-g<sha1>			-> (<branch>_g<sha1>, <buildnum>_<sha1>, <buildnum>)
+	#	<something_completely_different>	-> (<something_completely_different>, '', <buildnum>)
+	#
+
+	def parse_full_version(version):	
+		match = re.match('^([^-]+)-([0-9]+)-g([0-9a-z]+)$', version)
+		if not match: return None, None
+
+		vername, tagdist, sha1  = match.groups()
+
+		# handle 1.2.3.lsst5 --> 1.2.3.5
+		fixed_ver, _ = parse_lsst_patchlevel(vername)
+		if fixed_ver is not None:
+			vername = fixed_ver
+
+		return "%s.%s" % (vername, tagdist), sha1
+
+	def parse_lsst_patchlevel(version):
+		# handle 1.2.3.lsst5 --> 1.2.3.5
+		match = re.match(r'^(.*?).?lsst([0-9]+)$', version)
+		if not match: return None, None
+
+		true_ver, lsst_patch = match.groups()
+		return "%s.%s" % (true_ver, lsst_patch), 'build'
+
+	def parse_branch_sha1(version):
+		match = re.match('^([^-]+)-g([0-9a-z]+)$', version)
+		if not match: return None, None
+
+		branch, sha1 = match.groups()
+		return "%s_g%s" % (branch, sha1), sha1
+
+	def parse_default(version):
+		return version, 'build'
+
+	parsers  = special_version_parsers.get(product, [])
+	parsers += [ parse_full_version, parse_lsst_patchlevel, parse_branch_sha1, parse_default ]
+	for parser in parsers:
+		version, build_string_prefix = parser(raw_version)
+		if version is not None:
+			build_string = '%s_%s' % (build_string_prefix, buildnum)
+			break
+
+	# remove any remaining '-'
+	if '-' in version:
+		version = version.replace('-', '_')
+
+	return version, build_string, buildnum
+
+def conda_version_spec(conda_name):
+	pi = products[conda_name]
+	if pi.version is not None:
+		return "%s %s %s" % (conda_name, pi.version, pi.build_string)
+	else:
+		return conda_name
+
+def create_deps_string(deps, SEP='\n    - '):
+	return (SEP + SEP.join([dep.lower() for dep in deps])) if deps else ''
+
+def fill_out_template(dest_file, template_file, **variables):
+	# fill out a template file
+	with open(os.path.join('templates', template_file)) as fp:
+		template = fp.read()
+
+	text = template % variables
+
+	with open(dest_file, 'w') as fp:
+		fp.write(text)
+
+def gen_conda_package(product, sha, eups_version, eups_deps):
+	# What do we call this product in conda?
+	conda_name = conda_name_for(product)
+
+	#
+	# process dependencies
+	#
+	eups_deps = set(eups_deps)
+	if eups_deps & internal_products:	# if we have any of the internal dependencies, make sure we depend on legacy_config where their .cfg and .table files are
+		eups_deps.add('legacy_configs')
+	eups_deps -= skip_products					# skip unwanted dependencies
+	deps =  [ conda_name_for(prod) for prod in eups_deps ]		# transform to Anaconda product names
+	deps += add_missing_deps(conda_name, output_dir)		# manually add any missing dependencies
+
+	# flatten dependencies to work around a Conda bug:
+	# https://github.com/conda/conda/issues/918
+	def flatten_deps(deps, seen=None):
+		if seen is None:
+			seen = set()
+
+		fdeps = set(deps)
+		for dep in deps:
+			if dep not in seen:
+				try:
+					pi = products[dep]
+				except KeyError:
+					pass
+				else:
+					fdeps |= flatten_deps(pi.deps, seen)
+				seen.add(dep)
+		return fdeps
+	deps = sorted(flatten_deps(deps))
+
+	# Where is the source?
+	giturl = 'https://github.com/LSST/%s' % (product)
+
+	# convert to conda version
+	version, build_string, buildnum = eups_to_conda_version(product, eups_version)
+
+
+	#
+	# Create the Conda packaging spec files
+	#
+	dir = os.path.join(output_dir, conda_name)
+	os.makedirs(dir)
+
+	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
+	reqstr = create_deps_string(deps)
+
+	fill_out_template(os.path.join(dir, 'meta.yaml'), 'meta.yaml.template',
+		productNameLowercase = conda_name.lower(),
+		version = version,
+		buildnum = buildnum,
+		string = build_string,
+		gitrev = sha,
+		giturl = giturl,
+		build_req = reqstr,
+		run_req = reqstr,
+	)
+
+	# build.sh (TBD: use exact eups versions, instead of -r .)
+	setups = []
+	SEP = 'setup '
+	setups = SEP + ('\n'+SEP).join(setups) if setups else ''
+
+	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
+		setups = setups,
+		eups_tags = ' '.join(eups_tags)
+	)
+
+	# pre-link.sh (to add the global tags)
+	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'pre-link.sh.template',
+		product = product,
+	)
+
+	# record we've seen this product
+	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps)
+
+
+##################################
+# PyPi dependencies support code
+#
+
+def conda_package_exists(conda_name):
+	ret = subprocess.check_output('conda search -c defaults --override-channels -f --json %s' % (conda_name), shell=True).strip()
+	return ret != "{}"
+
+def gen_pypi_package(name, products, workdir):
+	tmpdir = os.path.join(workdir, '_pypi')
+	os.makedirs(tmpdir)
+
+	# generate the packages
+	retcode = subprocess.call('conda skeleton pypi %(name)s --recursive --output-dir %(pypi)s > %(pypi)s/output.log' % { 'name': name, 'pypi' : tmpdir }, shell=True)
+	if retcode:
+		raise Exception("conda skeleton returned %d" % retcode)
+
+	# conda skeleton doesn't properly detect some pypi dependencies
+	deps = add_missing_deps(name, tmpdir)
+	if deps:
+		# patch the generated meta.yaml file to add the missing dependenceis
+		build_req = create_deps_string(deps)
+		run_req   = create_deps_string(deps)
+
+		metafn = os.path.join(tmpdir, name, 'meta.yaml')
+		with open(metafn) as fp:
+			meta = fp.read()
+
+		import re
+		meta = re.sub(r'(^requirements:\n  build:)',  r'\1' + build_req, meta, count=1, flags=re.MULTILINE)
+		meta = re.sub(r'(^requirements:\n.*^  run:)', r'\1' +   run_req, meta, count=1, flags=re.MULTILINE | re.DOTALL)
+		
+		with open(metafn, "w") as fp:
+			fp.write(meta)
+
+	# see what was generated
+	#with open(os.path.join(tmpdir, 'output.log')) as fp:
+	#	packages = [ line.split()[-1] for line in fp if line.startswith("Writing recipe for ") ]
+
+	# move into output directory any generated packages that aren't already there
+	for package in os.listdir(tmpdir):
+		src  = os.path.join(tmpdir, package)
+		if not os.path.isdir(src):
+			continue
+
+		dest = os.path.join(workdir, package)
+		if not os.path.isdir(dest) and not conda_package_exists(package):
+			#print "MOVING: ", src, dest
+			os.rename(src, dest)
+
+			if package not in products:
+				products[package] = ProductInfo(package, None, None, None, None, None, [])
+
+			if workdir == output_dir:
+				report_progress(package)
+
+	# delete what remains
+	shutil.rmtree(tmpdir)
+
+def add_missing_deps(conda_name, workdir):
+	# inject missing dependencies, creating new conda packages if needed
+	# returns Conda package names
+	deps = []
+	for kind, dep in missing_deps.get(conda_name, []):
+		#print conda_name, ':', kind, dep
+		{
+			'pypi': gen_pypi_package,
+			'conda': lambda dep, products, workdir: None
+		}[kind](dep, products, workdir)
+		deps.append(dep)
+
+	return deps
+
+def load_manifest(fn):
+	# loads a manifest created by lsst_build
+	with open(fn) as fp:
+		lines = fp.read().split('\n')
+
+	lines = lines[2:]
+	for line in lines:
+		line = line.strip()
+		if not line:
+			continue
+		if line.startswith('#'):
+			continue
+
+		try:
+			(product, sha, version, deps) = line.split()
+			deps = deps.split(',')
+		except ValueError:
+			(product, sha, version) = line.split()
+			deps = []
+
+		yield (product, sha, version, deps)
+
+if __name__ == "__main__":
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. The format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests", type=str)
+	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
+	args = parser.parse_args()
+
+	# Load the manifest
+	products = {}
+	for (product, sha, version, deps) in load_manifest(args.manifest):
+		products[product] = (product, sha, version, deps)
+
+	# Extract the products of interest (and their dependencies)
+	manifest = OrderedDict()
+	def bottom_up_add_to_manifest(product):
+		(product, sha, version, deps) = products[product]
+		for dep in deps:
+			bottom_up_add_to_manifest(dep)
+		if product not in manifest:
+			manifest[product] = products[product]
+
+	top_level = args.products
+	for product in top_level:
+		bottom_up_add_to_manifest(product)
+
+	# Generate conda package files and build driver script
+	shutil.rmtree(output_dir, ignore_errors=True)
+	os.makedirs(output_dir)
+	products = OrderedDict()
+	for (product, sha, version, deps) in manifest.itervalues():
+		if product in internal_products: continue
+		if product in skip_products: continue
+
+		# override gitrevs (these are temporary hacks/fixes; they should go away when those branches are merged)
+		sha = override_gitrev.get(product, sha)
+
+		report_progress(product)
+		gen_conda_package(product, sha, version, deps)
+	print "done."
+
+	#
+	# write out the rebuild script
+	#
+	comment = ''
+	rebuilds = []
+	for pi in products.itervalues():
+		if pi.product == 'sims_photUtils':
+			comment = ''
+		conda_version = "%s-%s" % (pi.version, pi.build_string)
+		rebuilds.append(comment + "rebuild %s %s %s %s" % (pi.conda_name, conda_version, pi.product, pi.eups_version))
+
+	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'rebuild.sh.template',
+		output_dir = output_dir,
+		rebuilds = '\n'.join(rebuilds)
+		)
+
+	print ""
+	print "Generation completed; The recipes are in %s directory." % (output_dir)
+	print "Run 'bash %s/rebuild.sh' to build them." % (output_dir)

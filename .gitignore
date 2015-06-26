@@ -1,0 +1,4 @@
+*~
+*.pyc
+recipes/generated
+miniconda

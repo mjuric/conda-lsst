@@ -1,0 +1,111 @@
+#!/bin/bash
+#
+
+# Find the true source root: conda tries to be helpful and
+# changes into the first non-empty directory given a github repository; 
+export SRC_DIR=$(git rev-parse --show-toplevel)
+cd $SRC_DIR
+
+# - Can't run earlier than Mountain Lion (10.8)
+# (astrometry.net build breaks (at least))
+# - Can't run earlier than Mavericks
+# (boost won't build otherwise; 10.9 switched to libc++)
+export MACOSX_DEPLOYMENT_TARGET="10.9"
+
+# Make sure there's enough room in binaries for the install_name_tool magic
+# to work
+export LDFLAGS="$LDFLAGS -headerpad_max_install_names"
+
+# Add Anaconda libs to LIBRARY_PATH; otherwise, the linker can't resolve
+# the following situation:
+#
+#   libCurrentlyBeingBuilt.dylib -> libA.dylib -> libB.dylib
+#
+# where libA depends on libB (which in in Anaconda's lib directory).
+# An example is activemqcpp which depends on libssl.
+#
+export LIBRARY_PATH="$LIBRARY_PATH:$CONDA_DEFAULT_ENV/lib"
+if [[ -f SConstruct ]]; then
+	#
+	# Subvert scons environment cleaning
+	#
+	trap '{ rm -f "$CONDA_DEFAULT_ENV/bin/c++"; }' EXIT
+	CXXBIN=$(which c++)
+	cat > "$CONDA_DEFAULT_ENV/bin/c++" <<-EOT
+		#!/bin/bash
+		export LIBRARY_PATH="$LIBRARY_PATH"
+		exec "$CXXBIN" "\$@"
+	EOT
+	chmod +x "$CONDA_DEFAULT_ENV/bin/c++"
+	cat $CONDA_DEFAULT_ENV/bin/c++
+
+	# Make sure binaries (e.g., tests) get built with enough
+	# padding in the header for the install_name_tool to work
+	# (sconsUtils adds the contents of this variable to CCFLAGS and LINKFLAGS)
+	export ARCHFLAGS='-headerpad_max_install_names'
+fi
+
+PRODUCT=$(basename ups/*.table .table)
+PREFIX="$PREFIX/opt/lsst/$PRODUCT"
+
+# initialize EUPS
+source eups-setups.sh
+
+# prepare
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic prep
+
+# setup dependencies (just for the environmental variables, really)
+# FIXME: a command should be added to eupspkg to just get the envvars
+eups list
+%(setups)s
+setup -r .
+export
+
+# make debugging easier -- if the build breaks, chdir into the build directory and run
+# ./_build.sh <verb>
+echo '#!/bin/bash' > _build.sh
+export >> _build.sh
+echo "PRODUCT='$PRODUCT'" >> _build.sh
+echo 'eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic $@' >> _build.sh
+chmod +x _build.sh
+
+# build
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic config
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic build
+
+# Make sure no unit tests failed (shouldn't be needed any more, scons checks exit status now)
+#if [ -d  tests/.tests ] && \
+#    [ "`ls tests/.tests/*\.failed 2> /dev/null | wc -l`" -ne 0 ]; then
+#    echo "*** Failed unit tests."; 
+#    exit 1 
+#fi
+
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic install
+
+# compile all .py and .cfg files so they don't get picked up as new by conda
+# when building other packages
+if [[ -d "$PREFIX/python" ]]; then
+	# don't fail in case of syntax errors, etc.
+	"$PYTHON" -m compileall "$PREFIX/python" || true
+fi
+
+if ls "$PREFIX/ups"/*.cfg 1> /dev/null 2>&1; then
+	"$PYTHON" -m py_compile "$PREFIX/ups"/*.cfg
+fi
+
+# declare to EUPS
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic decl
+
+# tag as requested
+TAGFILE="$EUPS_PATH/ups_db/global.tags"
+for TAG in %(eups_tags)s; do
+	# FIXME: This should be handled by the post-link/pre-delete script !!!
+	test -f "$TAGFILE" && echo -n " " >> "$TAGFILE"
+	echo -n "$TAG" >> "$TAGFILE"
+
+	eups declare -t $TAG "$PRODUCT" "$PKG_VERSION"
+done
+
+# move the tags file to our ups dir; it will be merged by the pre-link.sh
+# script with the EUPS database when the package is installed
+mv "$TAGFILE" "$PREFIX/ups"

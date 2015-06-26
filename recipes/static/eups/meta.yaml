@@ -1,0 +1,35 @@
+#
+# To build a Conda package, run conda build as:
+#
+#    env GITREV=<git sha, tag, or branch> conda build .
+#
+# Example:
+#
+#    env GITREV=1.5.9 conda build .
+#
+
+package:
+  name: eups
+  version: {{ environ.get('GIT_DESCRIBE_TAG', '') + (('_%s' % environ['GIT_DESCRIBE_NUMBER']) if environ.get('GIT_DESCRIBE_NUMBER', '0') != '0' else '') }}
+
+build:
+  script_env:
+    - GITREV
+
+source:
+#  git_tag: 1.5.9
+#  git_rev: ff88ff13689332749e24a17c61a4e2fa80dedf4e
+  git_rev: {{ environ['GITREV'] }}
+  git_url: https://github.com/RobertLuptonTheGood/eups
+
+requirements:
+  build:
+    - python
+
+  run:
+    - python
+
+about:
+  home: //github.com/RobertLuptonTheGood/eups
+  license: GPLv2
+  summary: A version manager tracking product dependencies

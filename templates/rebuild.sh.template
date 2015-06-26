@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# stop in case of trouble
+set -e
+
+# change into script directory
+cd "$(dirname $BASH_SOURCE)"
+
+rebuild()
+{
+	# Conda name/version
+	PACKAGE="$1"
+	VERSION="$2"
+
+	# EUPS name/version
+	PRODUCT="$3"
+	PRODUCT_VERSION="$4"
+
+	pushd "$PACKAGE" > /dev/null
+
+	if [[ ! -f .done ]]; then
+		echo -n "rebuilding $PACKAGE"
+		if [[ "$PRODUCT" != None ]]; then
+			echo -n " (ver $VERSION)   [from $PRODUCT-$PRODUCT_VERSION] ... "
+		else
+			echo -n "   [from PyPi] ... "
+		fi
+
+		if conda build . > _build.log 2>&1; then
+			touch .done
+			echo 'OK'
+		else
+			echo 'ERROR'
+			exit -1
+		fi
+
+		echo "binstar upload --force -u lsst $(conda build . --output)" > binstar-upload.sh
+	fi
+	
+	popd > /dev/null
+}
+
+# this is where rebuild calls will get inserted
+%(rebuilds)s
+
+# generate the upload script, and tell the user how to use it
+cat */binstar-upload.sh > binstar-upload.sh
+echo "To upload to anaconda.org, run 'bash %(output_dir)s/binstar-upload.sh'"

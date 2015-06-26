@@ -1,0 +1,36 @@
+#
+# To build a Conda package, run conda build as:
+#
+#    env GITREV=<git sha, tag, or branch> conda build .
+#
+# Example:
+#
+#    env GITREV=1.5.9 conda build .
+#
+
+package:
+  name: legacy_configs
+  version: 1.0.0
+
+build:
+  script_env:
+    - GITREV
+    - PRODUCT
+
+source:
+  git_rev: {{ environ['GITREV'] }}
+  git_url: "https://github.com/mjuric/legacy_configs"
+
+requirements:
+  build:
+    - python
+    - eups
+
+  run:
+    - python
+    - eups
+
+about:
+  home: "https://github.com/mjuric/legacy_configs"
+#  license: GPLv2
+#  summary: A version manager tracking product dependencies
