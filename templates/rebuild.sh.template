@@ -34,7 +34,7 @@ rebuild()
 			exit -1
 		fi
 
-		echo "binstar upload --force -u lsst $(conda build . --output)" > binstar-upload.sh
+		echo "binstar upload --force -u lsst -c dev $(conda build . --output)" > binstar-upload.sh
 	fi
 	
 	popd > /dev/null
