@@ -14,7 +14,7 @@ This code is alpha quality, and has only been tested on OS X.
 
 ## Prerequisites
 
-You need at least [Miniconda](conda.pydata.org/miniconda.html) with `conda-build` and `jinja2` packages installed. For your convenience, there's a script in:
+You need at least [Miniconda](conda.pydata.org/miniconda.html) with `conda-build`, `jinja2`, and `binstar` packages installed. For your convenience, there's a script in:
 ```bash
 bash ./bin/bootstrap.sh
 ```
@@ -53,8 +53,11 @@ source activate lsst
 Then, you'll need to tell Conda about the LSST [anaconda.org](http://anaconda.org) channel:
 
 ```bash
-conda config --add channels http://conda.anaconda.org/lsst
+conda config --add channels http://conda.anaconda.org/lsst/channel/dev
 ```
+
+(note: this script currently publishes everything onto the 'development'
+channel named `dev`, as you can tell from the URL above).
 
 Then, to install (for example) `sims_maf`, run:
 
