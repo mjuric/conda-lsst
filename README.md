@@ -26,8 +26,8 @@ To generate all packages and upload them to anaconda.org, run as follows:
 
 ```bash
 # Build the two prerequisites
-(cd recipes/static/eups           && conda build . && binstar upload $(conda build . --output) )
-(cd recipes/static/legacy_configs && conda build . && binstar upload $(conda build . --output) )
+(cd recipes/static/eups           && conda build . && binstar upload -u lsst $(conda build . --output) )
+(cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
 
 # Generate stack recipes (in recipes/generated subdirectory)
 ./bin/generate-conda-packages samples/b1467.txt sims_maf

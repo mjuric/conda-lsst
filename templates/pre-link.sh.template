@@ -18,7 +18,8 @@ source eups-setups.sh
 
 # Merge the EUPS tags used by this package with the global EUPS database
 #
-TAGFILE="$EUPS_PATH/ups_db/global.tags"
+IFS=':' read -ra EUPS_PATH_ARR <<< "$EUPS_PATH"
+TAGFILE="${EUPS_PATH_ARR[0]}/ups_db/global.tags"
 
 # We need to merge the tags in the existing global.tags file, with any new
 # tags that our product needs:
