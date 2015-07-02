@@ -40,9 +40,17 @@ binstar login			# Run this once to log in with your anaconda.org credentials
 bash recipes/generated/binstar-upload.sh
 ```
 
-## Installing conda packages
+## Installing Conda packages
 
-You'll need to add the LSST anaconda.org channel first:
+This is alpha-quality code; for now, it's probably safest to install LSST
+conda packages into a separate [Conda
+environment](http://conda.pydata.org/docs/using/envs.html):
+
+```bash
+conda create --name lsst python
+source activate lsst
+```
+Then, you'll need to tell Conda about the LSST [anaconda.org](http://anaconda.org) channel:
 
 ```bash
 conda config --add channels http://conda.anaconda.org/lsst
@@ -54,10 +62,17 @@ Then, to install (for example) `sims_maf`, run:
 conda install lsst-sims-maf
 ```
 
-To use it, run:
+## Running Conda-delivered LSST codes
+
+Though delivered through Conda, the LSST codes are still managed by EUPS
+under the hub.  You'll therefore need to set up the EUPS environment and the
+individual packages being able to use them:
+
 ```bash
-source eups-setups.sh	# this activates EUPS
-setup sims_maf
+source eups-setups.sh	   # this activates EUPS (it's the equivalent of loadLSST.bash)
+setup sims_maf           # the usual EUPS command to setup a product
 
 #... run IPython notebooks, etc ...
 ```
+
+(note: adjust the instructions above as appropriate for your shell).
