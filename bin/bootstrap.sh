@@ -17,32 +17,33 @@ fi
 
 #
 # Install Miniconda
-if [[ ! -f "$PWD/miniconda/.installed" ]]; then
-    if [[ "$OSTYPE" == "linux-gnu" ]]; then
-        rm -f Miniconda-latest-Linux-x86_64.sh
-        rm -rf "$PWD/miniconda"
-        wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh
-        bash Miniconda-latest-Linux-x86_64.sh -b -p "$PWD/miniconda"
-        rm -f Miniconda-latest-Linux-x86_64.sh
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        rm -f Miniconda-latest-MacOSX-x86_64.sh
-        rm -rf "$PWD/miniconda"
-        wget https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh
-        bash Miniconda-latest-MacOSX-x86_64.sh -b -p "$PWD/miniconda"
-        rm -f Miniconda-latest-MacOSX-x86_64.sh
-    fi	
-    #
-    # Install conda-build, jinja2
-    #
-    export PATH="$PWD/miniconda/bin:$PATH"
-    conda install conda-build jinja2 binstar --yes
+#
 
-    # marker that we're done
-    touch "$PWD/miniconda/.installed"
+if [[ ! -f "$PWD/miniconda/.installed" ]]; then
+	case "$OSTYPE" in
+		linux*)  MINICONDA_SH=Miniconda-latest-Linux-x86_64.sh ;;
+		darwin*) MINICONDA_SH=Miniconda-latest-MacOSX-x86_64.sh ;;
+		*)       echo "Unsupported OS $OSTYPE. Exiting."; exit -1 ;;
+	esac
+
+	rm -f "$MINICONDA_SH"
+	rm -rf "$PWD/miniconda"
+	wget https://repo.continuum.io/miniconda/"$MINICONDA_SH"
+	bash "$MINICONDA_SH" -b -p "$PWD/miniconda"
+	rm -f "$MINICONDA_SH"
+
+	#
+	# Install conda-build, jinja2
+	#
+	export PATH="$PWD/miniconda/bin:$PATH"
+	conda install conda-build jinja2 binstar --yes
+
+	# marker that we're done
+	touch "$PWD/miniconda/.installed"
 else
-    echo
-    echo "Found Miniconda in $PWD/miniconda; skipping Miniconda install."
-    echo
+	echo
+	echo "Found Miniconda in $PWD/miniconda; skipping Miniconda install."
+	echo
 fi
 
 
