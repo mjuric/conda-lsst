@@ -20,12 +20,17 @@ fi
 #
 
 if [[ ! -f "$PWD/miniconda/.installed" ]]; then
-	# FIXME: Make this cross-platform
-	rm -f Miniconda-latest-MacOSX-x86_64.sh
+	case "$OSTYPE" in
+		linux*)  MINICONDA_SH=Miniconda-latest-Linux-x86_64.sh ;;
+		darwin*) MINICONDA_SH=Miniconda-latest-MacOSX-x86_64.sh ;;
+		*)       echo "Unsupported OS $OSTYPE. Exiting."; exit -1 ;;
+	esac
+
+	rm -f "$MINICONDA_SH"
 	rm -rf "$PWD/miniconda"
-	wget https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh
-	bash Miniconda-latest-MacOSX-x86_64.sh -b -p "$PWD/miniconda"
-	rm -f Miniconda-latest-MacOSX-x86_64.sh
+	wget https://repo.continuum.io/miniconda/"$MINICONDA_SH"
+	bash "$MINICONDA_SH" -b -p "$PWD/miniconda"
+	rm -f "$MINICONDA_SH"
 
 	#
 	# Install conda-build, jinja2
