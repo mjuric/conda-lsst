@@ -47,7 +47,7 @@ conda packages into a separate [Conda
 environment](http://conda.pydata.org/docs/using/envs.html):
 
 ```bash
-conda create --name lsst python
+conda create --name lsst ipython-notebook
 source activate lsst
 ```
 Then, you'll need to tell Conda about the LSST [anaconda.org](http://anaconda.org) channel:
