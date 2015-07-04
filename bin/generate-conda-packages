@@ -62,7 +62,7 @@ eups_tags = [ 'current', 'conda' ]
 
 # Override sha1s -- these are temporary hacks until the fixes below get merged
 override_gitrev = {
-	'sconsUtils':    'u/mjuric/osx-deployment-target',
+#	'sconsUtils':    'u/mjuric/osx-deployment-target',		# Now handled via patch
 #	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',	# Handle internally with skip_products
 #	'healpy':        'u/mjuric/sanitize-flags',			# Apply patch
 #	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',	# Handle internally by not failing on compileall
