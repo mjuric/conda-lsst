@@ -10,7 +10,7 @@ The recipes are generate using the information stored in
 [EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
 that LSST uses internally.
 
-This code is alpha quality, and has only been tested on OS X.
+This code is alpha quality. It has been tested on OS X and Linux.
 
 ## Prerequisites
 
@@ -25,6 +25,9 @@ that will install all of these for you into a subdirectory named `miniconda`.
 To generate all packages and upload them to anaconda.org, run as follows:
 
 ```bash
+# If on Linux, build patchelf v0.8
+conda build recipes/static/patchelf
+
 # Build the two prerequisites
 (cd recipes/static/eups           && conda build . && binstar upload -u lsst $(conda build . --output) )
 (cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
@@ -39,6 +42,11 @@ bash recipes/generated/rebuild.sh
 binstar login			# Run this once to log in with your anaconda.org credentials
 bash recipes/generated/binstar-upload.sh
 ```
+
+Build logs are stored in `recipes/generated/<packagename>/_build.log`.
+Failed builds can be debugged by changing into the source directory (usually
+.../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
+is typically `build`.
 
 ## Installing Conda packages
 
