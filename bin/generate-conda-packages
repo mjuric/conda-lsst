@@ -63,11 +63,11 @@ eups_tags = [ 'current', 'conda' ]
 # Override sha1s -- these are temporary hacks until the fixes below get merged
 override_gitrev = {
 	'sconsUtils':    'u/mjuric/osx-deployment-target',
-	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',
+#	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',	# Handle internally with skip_products
 #	'healpy':        'u/mjuric/sanitize-flags',			# Apply patch
-	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',
+#	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',	# Handle internally by not failing on compileall
 	'ctrl_events':   'u/mjuric/osx-compatibility',
-	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'
+#	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'		# Handle internally by not failing on compileall
 }
 
 ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps'])
