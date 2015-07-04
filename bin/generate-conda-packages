@@ -174,8 +174,11 @@ def conda_version_spec(conda_name):
 	else:
 		return conda_name
 
+def create_yaml_list(elems, SEP='\n    - '):
+	return (SEP + SEP.join(elems)) if elems else ''
+
 def create_deps_string(deps, SEP='\n    - '):
-	return (SEP + SEP.join([dep.lower() for dep in deps])) if deps else ''
+	return create_yaml_list([dep.lower() for dep in deps], SEP)
 
 def fill_out_template(dest_file, template_file, **variables):
 	# fill out a template file
@@ -199,7 +202,7 @@ def prepare_patches(product, dir):
 	
 	# convert to meta.yaml string
 	patchlist = [ os.path.basename(p) for p in patch_files ]
-	patches = '  patches:' + create_deps_string(patchlist)
+	patches = '  patches:' + create_yaml_list(patchlist)
 	return patches
 
 def gen_conda_package(product, sha, eups_version, eups_deps):
