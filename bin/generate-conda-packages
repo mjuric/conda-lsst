@@ -72,8 +72,11 @@ override_gitrev = {
 
 ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps'])
 
-def report_progress(product):
-	print "%s... " % product,
+def report_progress(product, verstr = None):
+	if verstr is not None:
+		print "%s-%s...  " % (product, verstr),
+	else:
+		print "%s...  " % product,
 	sys.stdout.flush()
 
 def eups_to_conda_version(product, eups_version):
@@ -88,17 +91,22 @@ def eups_to_conda_version(product, eups_version):
 	#     https://github.com/conda/conda/blob/master/conda/verlib.py
 	#  which should be PEP 386 compliant (and very limited). We do our best here to fit into that straitjacket.
 
-	# Split into version + build number
+	# hardcoded for now. This should be incremented on a case-by-case basis to
+	# push fixes that are Conda-build related
+	buildnum = 0
+
+	# Split into version + eups build number ("plusver")
 	if '+' in eups_version:
-		raw_version, buildnum = eups_version.split('+')
+		raw_version, plusver = eups_version.split('+')
+		plusver = int(plusver)
 	else:
-		raw_version, buildnum = eups_version, 0
+		raw_version, plusver = eups_version, 0
 
 	# Parse EUPS version:
 	# Possibilities to detect:
-	#	<vername>-<tagdist>-g<sha1>		-> (<vername>.<tagdist>, <buildnum>_<sha1>, <buildnum>)
+	#	<vername>-<tagdist>-g<sha1>		-> (<vername>.<tagdist>, <plusver>_<sha1>, <buildnum>)
 	#          <vername> can be <version>.lsst<N>	->   <vername>.<N>
-	#	<branch>-g<sha1>			-> (<branch>_g<sha1>, <buildnum>_<sha1>, <buildnum>)
+	#	<branch>-g<sha1>			-> (<branch>_g<sha1>, <plusver>_<sha1>, <buildnum>)
 	#	<something_completely_different>	-> (<something_completely_different>, '', <buildnum>)
 	#
 
@@ -121,7 +129,7 @@ def eups_to_conda_version(product, eups_version):
 		if not match: return None, None
 
 		true_ver, lsst_patch = match.groups()
-		return "%s.%s" % (true_ver, lsst_patch), 'build'
+		return "%s.%s" % (true_ver, lsst_patch), ''
 
 	def parse_branch_sha1(version):
 		match = re.match('^([^-]+)-g([0-9a-z]+)$', version)
@@ -131,15 +139,24 @@ def eups_to_conda_version(product, eups_version):
 		return "%s_g%s" % (branch, sha1), sha1
 
 	def parse_default(version):
-		return version, 'build'
+		return version, ''
 
 	parsers  = special_version_parsers.get(product, [])
 	parsers += [ parse_full_version, parse_lsst_patchlevel, parse_branch_sha1, parse_default ]
 	for parser in parsers:
 		version, build_string_prefix = parser(raw_version)
 		if version is not None:
-			build_string = '%s_%s' % (build_string_prefix, buildnum)
+			build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
 			break
+
+	# Heuristic for converting the (unnaturally) large LSST version numbers
+	# to something more apropriate (i.e. 10.* -> 0.10.*, etc.).
+	if re.match(r'^1[0-9]\.[0-9]+.*$', version):
+		version = "0." + version
+
+	# add plusver to version as .0000
+	if plusver:
+		version += ".%04d" % int(plusver)
 
 	# remove any remaining '-'
 	if '-' in version:
@@ -186,6 +203,12 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	# What do we call this product in conda?
 	conda_name = conda_name_for(product)
 
+	# convert to conda version
+	version, build_string, buildnum = eups_to_conda_version(product, eups_version)
+
+	# write out a progress message
+	report_progress(conda_name, "%s-%s" % (version, build_string))
+
 	#
 	# process dependencies
 	#
@@ -217,10 +240,6 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 
 	# Where is the source?
 	giturl = 'https://github.com/LSST/%s' % (product)
-
-	# convert to conda version
-	version, build_string, buildnum = eups_to_conda_version(product, eups_version)
-
 
 	#
 	# Create the Conda packaging spec files
@@ -395,7 +414,6 @@ if __name__ == "__main__":
 		# override gitrevs (these are temporary hacks/fixes; they should go away when those branches are merged)
 		sha = override_gitrev.get(product, sha)
 
-		report_progress(product)
 		gen_conda_package(product, sha, version, deps)
 	print "done."
 
