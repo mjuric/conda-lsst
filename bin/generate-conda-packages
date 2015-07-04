@@ -66,7 +66,7 @@ override_gitrev = {
 #	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',	# Handle internally with skip_products
 #	'healpy':        'u/mjuric/sanitize-flags',			# Apply patch
 #	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',	# Handle internally by not failing on compileall
-	'ctrl_events':   'u/mjuric/osx-compatibility',
+#	'ctrl_events':   'u/mjuric/osx-compatibility',			# Fixed on master
 #	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'		# Handle internally by not failing on compileall
 }
 

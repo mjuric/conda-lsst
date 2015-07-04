@@ -30,7 +30,7 @@ To generate all packages and upload them to anaconda.org, run as follows:
 (cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
 
 # Generate stack recipes (in recipes/generated subdirectory)
-./bin/generate-conda-packages samples/b1467.txt sims_maf
+./bin/generate-conda-packages samples/b1488.txt sims_maf
 
 # Build the packages from the recipes
 bash recipes/generated/rebuild.sh
