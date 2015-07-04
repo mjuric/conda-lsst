@@ -24,7 +24,7 @@ build:
 
 requirements:
   build:
-    - patchelf >=0.8
+    - patchelf >=0.8	# [not osx]
     - python
     - eups%(build_req)s
 
