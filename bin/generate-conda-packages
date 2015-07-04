@@ -37,6 +37,9 @@ lsst_prefix="lsst-"
 eups_to_conda_map = {
 	'legacy_configs':	'legacy_configs',
 	'lsst':			lsst_prefix + 'eups-environment',
+	'lsst_sims':		lsst_prefix + 'sims',
+	'lsst_distrib':		lsst_prefix + 'distrib',
+	'lsst_apps':		lsst_prefix + 'apps',
 }
 
 # Missing dependencies (these would be transparently installed with pip otherwise)
