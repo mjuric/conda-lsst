@@ -15,6 +15,7 @@ package:
 source:
   git_rev: "%(gitrev)s"
   git_url: "%(giturl)s"
+%(patches)s
 
 build:
   number: %(buildnum)s

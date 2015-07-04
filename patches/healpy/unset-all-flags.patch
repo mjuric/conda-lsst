@@ -1,0 +1,14 @@
+diff --git a/ups/eupspkg.cfg.sh b/ups/eupspkg.cfg.sh
+index 8b81959..64c4265 100644
+--- ups/eupspkg.cfg.sh
++++ ups/eupspkg.cfg.sh
+@@ -2,3 +2,9 @@ export PKG_CONFIG_PATH=$CFITSIO_DIR/lib/pkgconfig
+ export EXTERNAL_CFITS=yes
+ export CFITSIO_EXT_INC=$CFITSIO_DIR/include
+ export CFITSIO_EXT_LIB=$CFITSIO_DIR/lib/libcfitsio.so
++
++# healpy build will fail on OS X with some combination of (C|CXX|LD)FLAGS
++# e.g., specifically when '-arch x86_64' is given (makes it set the wrong sysroot)
++unset CFLAGS
++unset CXXFLAGS
++unset LDFLAGS

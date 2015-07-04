@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, os.path, shutil, subprocess, re, sys
+import os, os.path, shutil, subprocess, re, sys, glob
 from collections import OrderedDict, namedtuple
 
 def conda_name_for(product):
@@ -64,7 +64,7 @@ eups_tags = [ 'current', 'conda' ]
 override_gitrev = {
 	'sconsUtils':    'u/mjuric/osx-deployment-target',
 	'webservcommon': 'u/mjuric/DM-2993-never-depend-on-anaconda',
-	'healpy':        'u/mjuric/sanitize-flags',
+#	'healpy':        'u/mjuric/sanitize-flags',			# Apply patch
 	'log':           'u/mjuric/DM-2995-fix-EINTR-in-testcase',
 	'ctrl_events':   'u/mjuric/osx-compatibility',
 	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'
@@ -167,6 +167,21 @@ def fill_out_template(dest_file, template_file, **variables):
 	with open(dest_file, 'w') as fp:
 		fp.write(text)
 
+def prepare_patches(product, dir):
+	patchdir = os.path.join('patches', product)
+	if not os.path.isdir(patchdir):
+		return ''
+
+	patch_files = glob.glob(os.path.join(patchdir, '*.patch'))
+
+	for patchfn in patch_files:
+		shutil.copy2(patchfn, dir)
+	
+	# convert to meta.yaml string
+	patchlist = [ os.path.basename(p) for p in patch_files ]
+	patches = '  patches:' + create_deps_string(patchlist)
+	return patches
+
 def gen_conda_package(product, sha, eups_version, eups_deps):
 	# What do we call this product in conda?
 	conda_name = conda_name_for(product)
@@ -216,6 +231,8 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
 	reqstr = create_deps_string(deps)
 
+	patches = prepare_patches(product, dir)
+
 	fill_out_template(os.path.join(dir, 'meta.yaml'), 'meta.yaml.template',
 		productNameLowercase = conda_name.lower(),
 		version = version,
@@ -225,6 +242,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 		giturl = giturl,
 		build_req = reqstr,
 		run_req = reqstr,
+		patches = patches,
 	)
 
 	# build.sh (TBD: use exact eups versions, instead of -r .)
