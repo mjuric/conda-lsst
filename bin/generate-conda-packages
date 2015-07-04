@@ -25,7 +25,7 @@ output_dir = "recipes/generated"
 internal_products = set("python swig libevent flask twisted scons numpy protobuf matplotlib".split())
 
 # Products to skip alltogether (i.e., don't build, don't make a dependency)
-skip_products = set("anaconda afwdata".split())
+skip_products = set("anaconda afwdata sims_GalSimInterface GalSim".split())
 
 # Products that need to be prefixed with our prefix to avoid collisions
 # Products whose Conda name will _not_ be prefixed with out namespace prefix
