@@ -20,9 +20,11 @@ source:
 build:
   number: %(buildnum)s
   string: "%(string)s"
+#  binary_relocation: false
 
 requirements:
   build:
+    - patchelf >=0.8
     - python
     - eups%(build_req)s
 
