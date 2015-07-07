@@ -1,9 +1,5 @@
 #--
 #-- All lines beginning with #-- will be stripped from the generated file.
-#-- This is a template of a template. The code in gen_conda_package will
-#-- fill out everything but the build number and string in the first pass,
-#-- use the result to deduce the build number/string, and fill that out in
-#-- the second pass.
 #--
 #
 # Run `conda build .` to build this package
@@ -19,8 +15,8 @@ source:
 %(patches)s
 
 build:
-  number: %%(buildnum)s
-  string: "%%(string)s"
+#--  number: 0		# this will be added by patch_buildinfo()
+#--  string: "0"	# this will be added by patch_buildinfo()
 #  binary_relocation: false
 
 requirements:

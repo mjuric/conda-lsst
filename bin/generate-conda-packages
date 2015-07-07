@@ -74,15 +74,19 @@ override_gitrev = {
 #	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'		# Handle internally by not failing on compileall
 }
 
+#
 # Conda channels where we should look for
-
+#
 from conda_build.config import croot
 channels = [
 	'file://%s/' % croot,
 	'http://conda.anaconda.org/lsst/channel/dev/'
 ]
 
-ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built'])
+ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built', 'is_ours'])
+
+# A mapping from conda_name -> ProductInfo instance
+products = OrderedDict()
 
 # Cribbed from http://stackoverflow.com/questions/16694907/how-to-download-large-file-in-python-with-requests-py
 def download_url(url, fp):
@@ -176,6 +180,40 @@ class ReleaseDB(object):
 		# create a session
 		self._session = sessionmaker(bind=engine)()
 
+	def get_repodata(self, urlbase):
+		# Fetch and parse repodate.json
+		urlbase = '%s%s/' % (urlbase, self.platform)
+		url = urlbase + 'repodata.json'
+		r = requests.get(url)
+		r.raise_for_status()
+		return r.json()
+
+	def files_to_upload(self):
+		# FIXME: super-inefficient, loads the entire database to memory
+		remote_channels = [ channel.id for channel in self._session.query(Channel).filter(~Channel.urlbase.like('file://%')).all() ]
+
+		# Find packages that are present locally but not remotely
+		packages = self._session.query(Package).all()
+		all    = set([ (p.name, p.version, p.build_number) for p in packages ])
+		remote = set([ (p.name, p.version, p.build_number) for p in packages if p.channel_id in remote_channels ])
+
+		locals = [ p for p in packages if p.channel_id not in remote_channels ]
+		to_upload = [ p for p in locals if (p.name, p.version, p.build_number) in (all - remote) ]
+
+		# Find filenames
+		pkg2fn = dict()
+		for c in self._session.query(Channel).filter(Channel.urlbase.like('file://%')).all():
+			pkg2fn[p.channel.urlbase] = pkgs = dict()
+			base = os.path.join(p.channel.urlbase[len('file://'):], self.platform)
+			repodata = self.get_repodata(c.urlbase)
+			for fn, pkginfo in repodata[u'packages'].iteritems():
+				name, version, build_number = pkginfo['name'], pkginfo['version'], pkginfo['build_number']
+				assert (name, version, build_number) not in pkgs
+				pkgs[(name, version, build_number)] = os.path.join(base, fn)
+
+		filenames = [ pkg2fn[p.channel.urlbase][(p.name, p.version, p.build_number)] for p in to_upload ]
+		return filenames
+                                
 	def hash_filelist(self, filelist, ignore_prefix='', open=open):
 		import hashlib
 		m = hashlib.sha1()
@@ -247,15 +285,11 @@ class ReleaseDB(object):
 		self._session.commit()
 
 	def reindex_channel(self, channel):
-		print "updating built package cache [%s/%s] ... " % (channel.urlbase, self.platform),
+		print "updating built package cache [from %s%s] " % (channel.urlbase, self.platform),
 
 		urlbase = '%s%s/' % (channel.urlbase, self.platform)
 
-		# Fetch repodate.json using requests
-		url = urlbase + 'repodata.json'
-		r = requests.get(url)
-		r.raise_for_status()
-		repodata = r.json()
+		repodata = self.get_repodata(channel.urlbase)
 
 		# Fetch each package, extract and hash its recipe
 		import tarfile
@@ -277,6 +311,9 @@ class ReleaseDB(object):
 				pkg.id = None
 				pkg.channel_id = channel.id
 				self._session.add(pkg)
+
+				sys.stdout.write("+")
+				sys.stdout.flush()
 				continue
 
 			pkgurl = urlbase + package
@@ -284,7 +321,7 @@ class ReleaseDB(object):
 
 			# Download the package
 			with tempfile.NamedTemporaryFile(suffix=suffix) as fp:
-				print os.path.basename(pkgurl)
+				#print os.path.basename(pkgurl)
 				download_url(pkgurl, fp)
 
 				# Extract the recipe
@@ -307,6 +344,9 @@ class ReleaseDB(object):
 						if ctr == -1: break
 					except:
 						ctr = 0
+
+				sys.stdout.write("+")
+				sys.stdout.flush()
 
 			# write out the new database
 			self._session.commit()
@@ -345,9 +385,9 @@ class ReleaseDB(object):
 
 def report_progress(product, verstr = None):
 	if verstr is not None:
-		print "%s-%s...  " % (product, verstr),
+		print "  %s-%s...  " % (product, verstr)
 	else:
-		print "%s...  " % product,
+		print "  %s...  " % product
 	sys.stdout.flush()
 
 def eups_to_conda_version(product, eups_version):
@@ -437,7 +477,8 @@ def eups_to_conda_version(product, eups_version):
 def conda_version_spec(conda_name):
 	pi = products[conda_name]
 	if pi.version is not None:
-		return "%s %s %s" % (conda_name, pi.version, pi.build_string)
+		verexpr = ("==" if pi.is_ours else ">=") + pi.version
+		return "%s %s" % (conda_name, verexpr)
 	else:
 		return conda_name
 
@@ -542,7 +583,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 		product = product,
 	)
 
-	# meta.yaml (phase #1)
+	# meta.yaml
 	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
 	reqstr = create_deps_string(deps)
 
@@ -561,27 +602,60 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	# Find our build number. If this package already exists in the release DB,
 	# re-use the build number and mark it as '.done' so it doesn't get rebuilt.
 	# Otherwise, increment the max build number by one and use that.
-	is_built = False
-	hash = db.hash_recipe(dir)
-	try:
-		buildnum = db[conda_name.lower(), version, hash]
-		is_built = True
-		with open(os.path.join(dir, '.done'), 'w'):	# create the .done marker file
-			pass
-	except KeyError:
-		buildnum = db.get_next_buildnum(conda_name.lower(), version)
-	build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
-
-	# meta.yaml (phase #2)
-	fill_out_template(meta_yaml + '.tmp', meta_yaml,
-		buildnum = buildnum,
-		string = build_string,
-	)
-	os.rename(meta_yaml + '.tmp', meta_yaml)
+	buildnum, build_string, is_built = patch_buildinfo(conda_name.lower(), version, dir, build_string_prefix)
 
 	# record we've seen this product
-	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps, is_built)
+	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps, is_built, True)
 
+def get_build_info(conda_name, version, recipe_dir, build_string_prefix):
+	is_built = False
+	hash = db.hash_recipe(recipe_dir)
+	try:
+		buildnum = db[conda_name, version, hash]
+		is_built = True
+	except KeyError:
+		buildnum = db.get_next_buildnum(conda_name, version)
+
+	build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
+
+	return buildnum, build_string, is_built
+
+def patch_buildinfo(conda_name, version, recipe_dir, build_string_prefix):
+	# Patch meta.yaml for buildnum and buildstring
+	buildnum, build_string, is_built = get_build_info(conda_name, version, recipe_dir, build_string_prefix)
+
+	if is_built:
+		with open(os.path.join(recipe_dir, '.done'), 'w'):	# create the .done marker file
+			pass
+
+	# Patch meta.yaml
+	metafn = os.path.join(recipe_dir, 'meta.yaml')
+	with open(metafn) as fp:
+		meta = fp.read()
+
+	# The patterns we're matching/replacing:
+	# build:
+	#   number: <buildnum>
+	#   string: "<buildstr>"
+	# FIXME: this assumes there is a build: section in meta.yaml
+	# FIXME: all this feels veeeeeery clunky...
+	meta2 = re.sub(r'((?:^|\n)build:.*?\n +?string: ?)(.*?\n)', r'\1"%s"\n' % build_string, meta, count=1, flags=re.MULTILINE | re.DOTALL)
+	if meta2 == meta:
+		# no replacement has been made, probably because the build string wasn't specified; append it
+		meta2 = re.sub(r'(^build:\n)', r'\1  string: "%s"\n'      % build_string, meta, count=1, flags=re.MULTILINE | re.DOTALL)
+		if meta2 == meta: # no replacement again, probably because the build: section is missing alltogether
+			meta2 += '\nbuild:\n  string: "%s"\n' % build_string
+
+	meta  = re.sub(r'((?:^|\n)build:.*?\n +?number: ?)(.*?\n)', r'\g<1>%d\n' % buildnum, meta2, count=1, flags=re.MULTILINE | re.DOTALL)
+	if meta == meta2:
+		# no replacement has been made, probably because the buildnum wasn't specified; append it
+		meta = re.sub(r'(^build:\n)', r'\1  number: %d\n'    % buildnum, meta2, count=1, flags=re.MULTILINE | re.DOTALL)
+		pass
+
+	with open(metafn, "w") as fp:
+		fp.write(meta)
+
+	return buildnum, build_string, is_built
 
 ##################################
 # PyPi dependencies support code
@@ -634,10 +708,22 @@ def gen_pypi_package(name, products, workdir):
 			os.rename(src, dest)
 
 			if package not in products:
-				products[package] = ProductInfo(package, None, None, None, None, None, [])
+				# Load name+version from meta.yaml
+				import yaml
+				with open(os.path.join(dest, 'meta.yaml')) as fp:	# FIXME: meta.yaml configs are not true .yaml files; this may fail in the future
+					meta = yaml.load(fp)
+				assert meta['package']['name'] == package, "meta['package']['name'] != package"
+
+				# Find our build number. If this package already exists in the release DB,
+				# re-use the build number and mark it as '.done' so it doesn't get rebuilt.
+				# Otherwise, increment the max build number by one and use that.
+				version = meta['package']['version']
+				buildnum, build_string, is_built = patch_buildinfo(package, version, dest, None)
+
+				products[package] = ProductInfo(package, version, build_string, buildnum, None, None, [], is_built, False)
 
 			if workdir == output_dir:
-				report_progress(package)
+				report_progress(package, products[package].version)
 
 	# delete what remains
 	shutil.rmtree(tmpdir)
@@ -690,39 +776,27 @@ def test_release_db():
 	print "hash for %s: %s" % (dir, hash)
 #	exit()
 
-	channels = [
-		'file:///Users/mjuric/projects/lsst_packaging_conda/miniconda/conda-bld/',
-		'http://conda.anaconda.org/lsst/channel/dev/'
-	]
-
 	db.reindex(channels)
 
 	print "next buildnum:", db.get_next_buildnum(name, version)
 	print "hash lookup: ", db[name, version, hash]
 
-if __name__ == "__main__":
-	from requests_file import FileAdapter	# run 'pip install requests_file' if this fails
-	global requests
+def main_upload(args):
+	user, channel = args.user, args.channel
 
-	s = requests.Session()
-	s.mount('file://', FileAdapter())
-	requests = s
+	# Find local channels (those beginning with file://)
+	files = db.files_to_upload()
+	if not files:
+		print "nothing to upload, all local packages already exist on remote servers."
+	else:
+		for fn in files:
+			cmd = "binstar upload -u %(user)s -c %(channel)s %(fn)s" % { 'user': user, 'channel': channel, 'fn': fn }
+			if args.dry_run:
+				print cmd
+			else:
+				subprocess.check_call(cmd, shell=True)
 
-#	test_release_db()
-#	exit()
-
-	import argparse
-	parser = argparse.ArgumentParser()
-	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. The format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests", type=str)
-	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
-	parser.add_argument("--no-refresh", help="skip refreshing the list of built packages; use the cached copy. Use with care.", action="store_true")
-	args = parser.parse_args()
-
-	# Load the built products cache database
-	db = ReleaseDB()
-	if not args.no_refresh:
-		db.reindex(channels)
-
+def build_manifest_for_products(top_level_products):
 	# Load the manifest
 	products = {}
 	for (product, sha, version, deps) in load_manifest(args.manifest):
@@ -737,15 +811,19 @@ if __name__ == "__main__":
 		if product not in manifest:
 			manifest[product] = products[product]
 
-	top_level = args.products
-	for product in top_level:
+	for product in top_level_products:
 		bottom_up_add_to_manifest(product)
+
+	return manifest
+
+def main_build(args):
+	# Get the (ordered) list of EUPS products to build
+	manifest = build_manifest_for_products(args.products)
 
 	# Generate conda package files and build driver script
 	shutil.rmtree(output_dir, ignore_errors=True)
 	os.makedirs(output_dir)
-	products = OrderedDict()
-	print "generating recipes: ",
+	print "generating recipes: "
 	for (product, sha, version, deps) in manifest.itervalues():
 		if product in internal_products: continue
 		if product in skip_products: continue
@@ -766,7 +844,9 @@ if __name__ == "__main__":
 
 		rebuilds.append("rebuild %s %s %s %s" % (pi.conda_name, conda_version, pi.product, pi.eups_version))
 		if not pi.is_built:
-			print "  will build: %s-%s" % (pi.conda_name, conda_version)
+			print "  will build:    %s-%s" % (pi.conda_name, conda_version)
+		else:
+			print "  already built: %s-%s" % (pi.conda_name, conda_version)
 	print "done."
 
 	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'templates/rebuild.sh.template',
@@ -774,6 +854,51 @@ if __name__ == "__main__":
 		rebuilds = '\n'.join(rebuilds)
 		)
 
-	print ""
-	print "Generation completed; The recipes are in %s directory." % (output_dir)
-	print "Run 'bash %s/rebuild.sh' to build them." % (output_dir)
+	if not args.dont_build:
+		print "building:"
+		subprocess.check_call('bash %s/rebuild.sh' % (output_dir), shell=True)
+	else:
+		print ""
+		print "Generation completed; The recipes are in %s directory." % (output_dir)
+		print "Run 'bash %s/rebuild.sh' to build them." % (output_dir)
+
+if __name__ == "__main__":
+	from requests_file import FileAdapter	# run 'pip install requests_file' if this fails
+	global requests
+
+	s = requests.Session()
+	s.mount('file://', FileAdapter())
+	requests = s
+
+#	test_release_db()
+#	exit()
+
+	import argparse
+	tl_parser = parser = argparse.ArgumentParser()
+	parser.add_argument("--no-refresh", help="skip refreshing the list of built packages; use the cached copy. Use with care.", action="store_true")
+
+	subparsers = tl_parser.add_subparsers()
+
+	# gen subcommand	
+	parser = subparsers.add_parser('build')
+	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. The format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests", type=str)
+	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
+	parser.add_argument("--dont-build", help="generate the recipes but don't build the packages.", action="store_true")
+	parser.set_defaults(func=main_build)
+
+	# upload subcommand
+	parser = subparsers.add_parser('upload')
+	parser.add_argument("--dry-run", help="don't upload, just print out the binstar commands that would have been used.", action="store_true")
+	parser.add_argument("--user", help="anaconda.org username (or organization name)", type=str, default='lsst')
+	parser.add_argument("--channel", help="channel name", type=str, default='dev')
+	parser.set_defaults(func=main_upload)
+
+	args = tl_parser.parse_args()
+
+	# Load the built products cache database
+	db = ReleaseDB()
+	if not args.no_refresh:
+		db.reindex(channels)
+
+	args.func(args)
+
