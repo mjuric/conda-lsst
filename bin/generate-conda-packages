@@ -74,7 +74,15 @@ override_gitrev = {
 #	'ctrl_orca':     'u/mjuric/typo-fix-in-production_data'		# Handle internally by not failing on compileall
 }
 
-ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps'])
+# Conda channels where we should look for
+
+from conda_build.config import croot
+channels = [
+	'file://%s/' % croot,
+	'http://conda.anaconda.org/lsst/channel/dev/'
+]
+
+ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built'])
 
 # Cribbed from http://stackoverflow.com/questions/16694907/how-to-download-large-file-in-python-with-requests-py
 def download_url(url, fp):
@@ -195,16 +203,20 @@ class ReleaseDB(object):
 
 				# Special handling of some files:
 				if rel_fn == 'meta.yaml':
-					# remove build number from the meta.yaml file
+					# remove build number and modify the build string from the meta.yaml file
 					# build:
 					#   number: 0
+					#   string: "blah_0"
 					state = 0	# 0: scan for build, 1: scan for number: 2: pass through the rest of the file
+					buildnum = None
 					for line in fp:
 						if state == 0 and line == 'build:\n':
 							state = 1
 						elif state == 1 and line.strip().startswith('number:'):
-							line = ''	# don't write out the 
-							state = 2
+							line = ''	# don't write out the build number
+						elif state == 1 and line.strip().startswith('string:'):
+							line = ''	# strip out the build string -- it encodes the buildnum as well
+									# FIXME: not sure what happens if we decide to change the buildstr prefix?
 						elif state == 1 and not line.strip():
 							state = 2	# didn't have an explicit number:
 
@@ -235,7 +247,7 @@ class ReleaseDB(object):
 		self._session.commit()
 
 	def reindex_channel(self, channel):
-		print "updating package cache for server %s, platform %s (this may take a while)..." % (channel.urlbase, self.platform)
+		print "updating built package cache [%s/%s] ... " % (channel.urlbase, self.platform),
 
 		urlbase = '%s%s/' % (channel.urlbase, self.platform)
 
@@ -253,7 +265,9 @@ class ReleaseDB(object):
 
 			# Skip if we already know about this package
 			if channel.packages.filter(Package.name == name, Package.version == version, Package.build_number == build_number).count():
-				print "already know about %s, skipping." % package
+				# print "already know about %s, skipping." % package
+				sys.stdout.write(".")
+				sys.stdout.flush()
 				continue
 
 			# See if we know about this package in other channels; just copy the info if we do
@@ -297,6 +311,7 @@ class ReleaseDB(object):
 			# write out the new database
 			self._session.commit()
 		self._session.commit()
+		print " done."
 
 	def hash_recipe(self, recipe_dir):
 		# Compute recipe hash for files in recipe_dir
@@ -321,7 +336,11 @@ class ReleaseDB(object):
 	def __getitem__(self, key):
 		# Return buildnum for (name, version, recipe_hash) if in the database
 		name, version, recipe_hash = key
-		return self._session.query(Package).filter_by(name=name, version=version, recipe_hash=recipe_hash).first().build_number
+		package = self._session.query(Package).filter_by(name=name, version=version, recipe_hash=recipe_hash).first()
+		if package is None:
+			raise KeyError()
+		else:
+			return package.build_number
 
 
 def report_progress(product, verstr = None):
@@ -398,7 +417,6 @@ def eups_to_conda_version(product, eups_version):
 	for parser in parsers:
 		version, build_string_prefix = parser(raw_version)
 		if version is not None:
-			build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
 			break
 
 	# Heuristic for converting the (unnaturally) large LSST version numbers
@@ -414,7 +432,7 @@ def eups_to_conda_version(product, eups_version):
 	if '-' in version:
 		version = version.replace('-', '_')
 
-	return version, build_string, buildnum
+	return version, build_string_prefix, buildnum
 
 def conda_version_spec(conda_name):
 	pi = products[conda_name]
@@ -431,10 +449,13 @@ def create_deps_string(deps, SEP='\n    - '):
 
 def fill_out_template(dest_file, template_file, **variables):
 	# fill out a template file
-	with open(os.path.join('templates', template_file)) as fp:
+	with open(template_file) as fp:
 		template = fp.read()
 
 	text = template % variables
+	
+	# strip template comments
+	text = re.sub(r'^#--.*\n', r'', text, flags=re.MULTILINE)
 
 	with open(dest_file, 'w') as fp:
 		fp.write(text)
@@ -459,10 +480,11 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	conda_name = conda_name_for(product)
 
 	# convert to conda version
-	version, build_string, buildnum = eups_to_conda_version(product, eups_version)
+	version, build_string_prefix, buildnum = eups_to_conda_version(product, eups_version)
 
 	# write out a progress message
-	report_progress(conda_name, "%s-%s" % (version, build_string))
+	#report_progress(conda_name, "%s-%s" % (version, build_string))
+	report_progress(conda_name, "%s" % (version))
 
 	#
 	# process dependencies
@@ -502,16 +524,32 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	dir = os.path.join(output_dir, conda_name)
 	os.makedirs(dir)
 
+	# Copy any patches into the recipe dir
+	patches = prepare_patches(product, dir)
+
+	# build.sh (TBD: use exact eups versions, instead of -r .)
+	setups = []
+	SEP = 'setup '
+	setups = SEP + ('\n'+SEP).join(setups) if setups else ''
+
+	fill_out_template(os.path.join(dir, 'build.sh'), 'templates/build.sh.template',
+		setups = setups,
+		eups_tags = ' '.join(eups_tags)
+	)
+
+	# pre-link.sh (to add the global tags)
+	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'templates/pre-link.sh.template',
+		product = product,
+	)
+
+	# meta.yaml (phase #1)
 	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
 	reqstr = create_deps_string(deps)
 
-	patches = prepare_patches(product, dir)
-
-	fill_out_template(os.path.join(dir, 'meta.yaml'), 'meta.yaml.template',
+	meta_yaml = os.path.join(dir, 'meta.yaml')
+	fill_out_template(meta_yaml, 'templates/meta.yaml.template',
 		productNameLowercase = conda_name.lower(),
 		version = version,
-		buildnum = buildnum,
-		string = build_string,
 		gitrev = sha,
 		giturl = giturl,
 		build_req = reqstr,
@@ -519,23 +557,30 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 		patches = patches,
 	)
 
-	# build.sh (TBD: use exact eups versions, instead of -r .)
-	setups = []
-	SEP = 'setup '
-	setups = SEP + ('\n'+SEP).join(setups) if setups else ''
+	# The recipe is now (almost) complete.
+	# Find our build number. If this package already exists in the release DB,
+	# re-use the build number and mark it as '.done' so it doesn't get rebuilt.
+	# Otherwise, increment the max build number by one and use that.
+	is_built = False
+	hash = db.hash_recipe(dir)
+	try:
+		buildnum = db[conda_name.lower(), version, hash]
+		is_built = True
+		with open(os.path.join(dir, '.done'), 'w'):	# create the .done marker file
+			pass
+	except KeyError:
+		buildnum = db.get_next_buildnum(conda_name.lower(), version)
+	build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
 
-	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
-		setups = setups,
-		eups_tags = ' '.join(eups_tags)
+	# meta.yaml (phase #2)
+	fill_out_template(meta_yaml + '.tmp', meta_yaml,
+		buildnum = buildnum,
+		string = build_string,
 	)
-
-	# pre-link.sh (to add the global tags)
-	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'pre-link.sh.template',
-		product = product,
-	)
+	os.rename(meta_yaml + '.tmp', meta_yaml)
 
 	# record we've seen this product
-	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps)
+	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps, is_built)
 
 
 ##################################
@@ -635,19 +680,15 @@ def load_manifest(fn):
 
 
 def test_release_db():
-	from requests_file import FileAdapter	# run 'pip install requests_file' if this fails
-	global requests
-
-	s = requests.Session()
-	s.mount('file://', FileAdapter())
-	requests = s
-
 	db = ReleaseDB()
 
 	name, version = "eups", "1.5.9_1"
 	dir = 'recipes/static/eups'
+	#name, version = "lsst-palpy", "1.6.0002"
+	#dir = 'recipes/generated/lsst-palpy'
 	hash = db.hash_recipe(dir)
 	print "hash for %s: %s" % (dir, hash)
+#	exit()
 
 	channels = [
 		'file:///Users/mjuric/projects/lsst_packaging_conda/miniconda/conda-bld/',
@@ -660,14 +701,27 @@ def test_release_db():
 	print "hash lookup: ", db[name, version, hash]
 
 if __name__ == "__main__":
-	test_release_db()
-	exit()
+	from requests_file import FileAdapter	# run 'pip install requests_file' if this fails
+	global requests
+
+	s = requests.Session()
+	s.mount('file://', FileAdapter())
+	requests = s
+
+#	test_release_db()
+#	exit()
 
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. The format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests", type=str)
 	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
+	parser.add_argument("--no-refresh", help="skip refreshing the list of built packages; use the cached copy. Use with care.", action="store_true")
 	args = parser.parse_args()
+
+	# Load the built products cache database
+	db = ReleaseDB()
+	if not args.no_refresh:
+		db.reindex(channels)
 
 	# Load the manifest
 	products = {}
@@ -691,6 +745,7 @@ if __name__ == "__main__":
 	shutil.rmtree(output_dir, ignore_errors=True)
 	os.makedirs(output_dir)
 	products = OrderedDict()
+	print "generating recipes: ",
 	for (product, sha, version, deps) in manifest.itervalues():
 		if product in internal_products: continue
 		if product in skip_products: continue
@@ -702,17 +757,19 @@ if __name__ == "__main__":
 	print "done."
 
 	#
-	# write out the rebuild script
+	# write out the rebuild script for packages that need rebuilding
 	#
-	comment = ''
 	rebuilds = []
+	print "generating rebuild script:"
 	for pi in products.itervalues():
-		if pi.product == 'sims_photUtils':
-			comment = ''
 		conda_version = "%s-%s" % (pi.version, pi.build_string)
-		rebuilds.append(comment + "rebuild %s %s %s %s" % (pi.conda_name, conda_version, pi.product, pi.eups_version))
 
-	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'rebuild.sh.template',
+		rebuilds.append("rebuild %s %s %s %s" % (pi.conda_name, conda_version, pi.product, pi.eups_version))
+		if not pi.is_built:
+			print "  will build: %s-%s" % (pi.conda_name, conda_version)
+	print "done."
+
+	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'templates/rebuild.sh.template',
 		output_dir = output_dir,
 		rebuilds = '\n'.join(rebuilds)
 		)

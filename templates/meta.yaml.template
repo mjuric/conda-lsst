@@ -1,11 +1,12 @@
+#--
+#-- All lines beginning with #-- will be stripped from the generated file.
+#-- This is a template of a template. The code in gen_conda_package will
+#-- fill out everything but the build number and string in the first pass,
+#-- use the result to deduce the build number/string, and fill that out in
+#-- the second pass.
+#--
 #
-# To build a Conda package, run conda build as:
-#
-#    env GITREV=<git sha, tag, or branch> conda build .
-#
-# Example:
-#
-#    env GITREV=1.5.9 conda build .
+# Run `conda build .` to build this package
 #
 
 package:
@@ -18,8 +19,8 @@ source:
 %(patches)s
 
 build:
-  number: %(buildnum)s
-  string: "%(string)s"
+  number: %%(buildnum)s
+  string: "%%(string)s"
 #  binary_relocation: false
 
 requirements:

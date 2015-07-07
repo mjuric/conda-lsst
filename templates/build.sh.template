@@ -1,5 +1,8 @@
 #!/bin/bash
-#
+#--
+#-- The template for build.sh.
+#-- All lines beginning with #-- will be stripped from the generated file.
+#--
 
 # Find the true source root: conda tries to be helpful and
 # changes into the first non-empty directory given a github repository; 
