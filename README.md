@@ -14,7 +14,9 @@ This code is alpha quality. It has been tested on OS X and Linux.
 
 ## Prerequisites
 
-You need at least [Miniconda](conda.pydata.org/miniconda.html) with `conda-build`, `jinja2`, and `binstar` packages installed. For your convenience, there's a script in:
+You need at least [Miniconda](conda.pydata.org/miniconda.html) with `conda-build`, `jinja2`, 
+`binstar`, `requests`, `sqlalchemy` packages installed, and the `requests_file` python
+module (install with `pip install requests_file`). For your convenience, there's a script in:
 ```bash
 bash ./bin/bootstrap.sh
 ```
@@ -33,14 +35,11 @@ conda build recipes/static/patchelf
 (cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
 
 # Generate stack recipes (in recipes/generated subdirectory)
-./bin/generate-conda-packages samples/b1488.txt sims_maf
-
-# Build the packages from the recipes
-bash recipes/generated/rebuild.sh
+./bin/conda-lsst build samples/b1488.txt sims_maf
 
 # Upload to anaconda.org
 binstar login			# Run this once to log in with your anaconda.org credentials
-bash recipes/generated/binstar-upload.sh
+./bin/conda-lsst upload
 ```
 
 Build logs are stored in `recipes/generated/<packagename>/_build.log`.

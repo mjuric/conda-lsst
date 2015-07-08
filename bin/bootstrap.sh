@@ -33,10 +33,12 @@ if [[ ! -f "$PWD/miniconda/.installed" ]]; then
 	rm -f "$MINICONDA_SH"
 
 	#
-	# Install conda-build, jinja2
+	# Install prerequisites
 	#
 	export PATH="$PWD/miniconda/bin:$PATH"
-	conda install conda-build jinja2 binstar --yes
+	conda install conda-build jinja2 binstar requests sqlalchemy pip --yes
+
+	pip install requests_file
 
 	# marker that we're done
 	touch "$PWD/miniconda/.installed"
