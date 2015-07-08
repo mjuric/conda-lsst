@@ -81,7 +81,7 @@ override_gitrev = {
 from conda_build.config import croot
 channels = [
 	'file://%s/' % croot,
-	'http://conda.anaconda.org/lsst/channel/dev/'
+	'http://eupsforge.net/conda/dev/',
 ]
 
 ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built', 'is_ours'])
@@ -279,7 +279,7 @@ class ReleaseDB(object):
 
 		# Delete information for any channel that wasn't in the list above
 		for channel in self._session.query(Channel).filter(~Channel.id.in_(cids)).all():
-			print "Removing channel %s... " % channel.urlbase,
+			print "purging cached data for [%s]... " % channel.urlbase,
 			self._session.delete(channel)
 			print "done."
 
@@ -790,20 +790,51 @@ def test_release_db():
 	print "next buildnum:", db.get_next_buildnum(name, version)
 	print "hash lookup: ", db[name, version, hash]
 
-def main_upload(args):
-	user, channel = args.user, args.channel
-
-	# Find local channels (those beginning with file://)
+def main_upload_binstar(args):
+	#
+	# Upload using binstar
+	#
 	files = db.files_to_upload()
 	if not files:
 		print "nothing to upload, all local packages already exist on remote servers."
-	else:
-		for fn in files:
-			cmd = "binstar upload -u %(user)s -c %(channel)s %(fn)s" % { 'user': user, 'channel': channel, 'fn': fn }
-			if args.dry_run:
-				print cmd
-			else:
-				subprocess.check_call(cmd, shell=True)
+		return
+
+	for fn in files:
+		cmd = "binstar upload -u %(user)s -c %(channel)s %(fn)s" % { 'user': args.user, 'channel': args.channel, 'fn': fn }
+		if args.dry_run:
+			print cmd
+		else:
+			subprocess.check_call(cmd, shell=True)
+
+def main_upload_ssh(args):
+	#
+	# Upload using SSH
+	#
+	files = db.files_to_upload()
+	if not files:
+		print "nothing to upload, all local packages already exist on remote servers."
+		return
+
+	server = args.server 		# 'mjuric@lsst-dev.ncsa.illinois.edu'
+	dir    = args.channel_dir	# 'public_html/conda/dev'
+	conda  = args.conda		# '/ssd/mjuric/projects/lsst_packaging_conda/miniconda/bin/conda'
+
+	# append platform string
+	dir = os.path.join(dir, db.platform)
+
+	dest = '%s:%s' % (server, dir)
+	try:
+		subprocess.check_call(['ssh', server, 'mkdir', '-p', dir])			# make sure the directory exists
+		if args.rsync:
+			subprocess.check_call(['rsync', '-av', '--progress'] + files + [dest])	# upload files
+		else:
+			subprocess.check_call(['scp', '-p'] + files + [dest])			# upload files
+		subprocess.check_call(['ssh', '-qt', server, conda, 'index', dir])		# reindex the server
+		db.reindex(channels)								# refresh local cache
+
+		print "upload completed."
+	except subprocess.CalledProcessError:
+		print "remote server reported an error (see above)."
 
 def build_manifest_for_products(top_level_products):
 	# Load the manifest
@@ -896,11 +927,23 @@ if __name__ == "__main__":
 	parser.set_defaults(func=main_build)
 
 	# upload subcommand
-	parser = subparsers.add_parser('upload')
+	u_parser = subparsers.add_parser('upload')
+	u_subparsers = u_parser.add_subparsers()
+
+	# 'upload binstar' subcommand
+	parser = u_subparsers.add_parser('binstar')
 	parser.add_argument("--dry-run", help="don't upload, just print out the binstar commands that would have been used.", action="store_true")
 	parser.add_argument("--user", help="anaconda.org username (or organization name)", type=str, default='lsst')
 	parser.add_argument("--channel", help="channel name", type=str, default='dev')
-	parser.set_defaults(func=main_upload)
+	parser.set_defaults(func=main_upload_binstar)
+
+	# 'upload ssh' subcommand
+	parser = u_subparsers.add_parser('ssh')
+	parser.add_argument("server", help="server connection string (e.g., username@my.server.edu).", type=str)
+	parser.add_argument("channel_dir", help="the channel directory on the server.", type=str)
+	parser.add_argument("--conda", help="path to 'conda' binary on the server.", type=str, default='conda')
+	parser.add_argument("--rsync", help="use rsync to copy the files to the remote server (the default is to use scp).", action="store_true")
+	parser.set_defaults(func=main_upload_ssh)
 
 	args = tl_parser.parse_args()
 

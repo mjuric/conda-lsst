@@ -2,15 +2,21 @@
 
 ## Overview
 
-This repository contains the code to generate
-[Conda](http://conda.pydata.org) recipes for LSST stack packages, and
-scripts needed to build and upload them to http://anaconda.org
+This repository contains the utility `conda-lsst` that can generate
+[Conda](http://conda.pydata.org) recipes for LSST stack packages, build
+them, and upload to a remote web server (or a hosted service such as
+[anaconda.org](http://anaconda.org)) from where they will be installable
+using `conda install`.
 
-The recipes are generate using the information stored in
+The recipes are generated using the information stored in
 [EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
 that LSST uses internally.
 
-This code is alpha quality. It has been tested on OS X and Linux.
+You *only* need this code if you wish to create and distribute your own build
+of the LSST stack; `conda-lsst` is **not** needed to just use the LSST
+codes.
+
+This code is beta quality; it is expected to work on OS X and Linux.
 
 ## Prerequisites
 
@@ -24,9 +30,12 @@ that will install all of these for you into a subdirectory named `miniconda`.
 
 ## Building Conda packages
 
-To generate all packages and upload them to anaconda.org, run as follows:
+To generate all packages and upload them to a remote service, run someting like the following:
 
 ```bash
+# Add conda-lsst to PATH
+export PATH="$PWD/bin:$PATH"
+
 # If on Linux, build patchelf v0.8
 conda build recipes/static/patchelf
 
@@ -34,22 +43,28 @@ conda build recipes/static/patchelf
 (cd recipes/static/eups           && conda build . && binstar upload -u lsst $(conda build . --output) )
 (cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
 
-# Generate stack recipes (in recipes/generated subdirectory)
-./bin/conda-lsst build samples/b1488.txt sims_maf
+# Build conda packages for LSST codes (the recipes will be stored in recipes/generated subdirectory)
+conda lsst build samples/b1488.txt sims_maf
 
-# Upload to anaconda.org
+# Option #1: Upload to anaconda.org
 binstar login			# Run this once to log in with your anaconda.org credentials
-./bin/conda-lsst upload
+conda lsst upload --user lsst --channel dev	# replace user/channel with your credentials
+
+# Option #2: Upload to a remote web server
+conda lsst upload ssh localhost public_html/conda/dev --conda /path/to/bin/conda/on/the/remote/server
 ```
+
+`conda-lsst` is smart about not rebuilding packages that have already been
+built.
 
 Build logs are stored in `recipes/generated/<packagename>/_build.log`.
 Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
 
-## Installing Conda packages
+## Installing LSST codes using Conda
 
-This is alpha-quality code; for now, it's probably safest to install LSST
+As this is beta-qality code, it's recommended to install LSST
 conda packages into a separate [Conda
 environment](http://conda.pydata.org/docs/using/envs.html):
 
@@ -57,14 +72,12 @@ environment](http://conda.pydata.org/docs/using/envs.html):
 conda create --name lsst ipython-notebook
 source activate lsst
 ```
-Then, you'll need to tell Conda about the LSST [anaconda.org](http://anaconda.org) channel:
+The LSST stack builds are kept on http://eupsforge.net/conda/dev channel; you'll
+need to tell `conda` about it:
 
 ```bash
-conda config --add channels http://conda.anaconda.org/lsst/channel/dev
+conda config --add channels http://eupsforge.net/conda/dev
 ```
-
-(note: this script currently publishes everything onto the 'development'
-channel named `dev`, as you can tell from the URL above).
 
 Then, to install (for example) `sims_maf`, run:
 
