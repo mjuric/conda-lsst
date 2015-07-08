@@ -168,7 +168,7 @@ class ReleaseDB(object):
 		self.platform = "%s-%s" % (plat, bits)
 
 		# open the database, ensure the tables are defined
-		dbfn = os.path.join('releasedb', self.platform, 'db.sqlite')
+		dbfn = os.path.join('pkginfo-cache', self.platform, 'cache-db.sqlite')
 		try:
 			os.makedirs(os.path.dirname(dbfn))
 		except OSError:
@@ -884,7 +884,7 @@ if __name__ == "__main__":
 
 	import argparse
 	tl_parser = parser = argparse.ArgumentParser()
-	parser.add_argument("--no-refresh", help="skip refreshing the list of built packages; use the cached copy. Use with care.", action="store_true")
+	parser.add_argument("--no-cache-refresh", help="skip refreshing the list of built packages; use the cached copy. Use with care.", action="store_true")
 
 	subparsers = tl_parser.add_subparsers()
 
@@ -906,7 +906,7 @@ if __name__ == "__main__":
 
 	# Load the built products cache database
 	db = ReleaseDB()
-	if not args.no_refresh:
+	if not args.no_cache_refresh:
 		db.reindex(channels)
 
 	args.func(args)
