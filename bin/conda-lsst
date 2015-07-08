@@ -215,7 +215,7 @@ class ReleaseDB(object):
 		filenames = [ pkg2fn[p.channel.urlbase][(p.name, p.version, p.build_number)] for p in to_upload ]
 		return filenames
                                 
-	def hash_filelist(self, filelist, ignore_prefix='', open=open):
+	def hash_filelist(self, filelist, ignore_prefix='', open=open, verbose=False):
 		import hashlib
 		m = hashlib.sha1()
 
@@ -265,7 +265,10 @@ class ReleaseDB(object):
 					mm.update(fp.read())
 
 			# Update the list hash
-			update(m, "%s  %s\n" % (mm.hexdigest(), rel_fn))
+			res = "%s  %s\n" % (mm.hexdigest(), rel_fn)
+			update(m, res)
+			if verbose:
+				sys.stdout.write(res)
 
 		return m.hexdigest()
 
@@ -362,7 +365,7 @@ class ReleaseDB(object):
 		self._session.commit()
 		print " done."
 
-	def hash_recipe(self, recipe_dir):
+	def hash_recipe(self, recipe_dir, verbose=False):
 		# Compute recipe hash for files in recipe_dir
 
 		# Get all files (incl. those in directories) and sort them
@@ -374,7 +377,9 @@ class ReleaseDB(object):
 		filelist = list(listfiles(recipe_dir))
 		prefix = recipe_dir if recipe_dir.endswith('/') else recipe_dir + '/'
 
-		hash = self.hash_filelist(filelist, prefix)
+		hash = self.hash_filelist(filelist, prefix, verbose=verbose)
+		if verbose:
+			print "result: ", hash
 		return hash
 
 	def get_next_buildnum(self, name, version):
@@ -842,6 +847,9 @@ def main_upload_ssh(args):
 	except subprocess.CalledProcessError:
 		print "remote server reported an error (see above)."
 
+def main_tools_hash(args):
+	db.hash_recipe(args.recipe_dir, verbose=True)
+
 def build_manifest_for_products(top_level_products):
 	# Load the manifest
 	products = {}
@@ -950,6 +958,15 @@ if __name__ == "__main__":
 	parser.add_argument("--conda", help="path to 'conda' binary on the server.", type=str, default='conda')
 	parser.add_argument("--rsync", help="use rsync to copy the files to the remote server (the default is to use scp).", action="store_true")
 	parser.set_defaults(func=main_upload_ssh)
+
+	# 'tools' subcommand
+	t_parser = subparsers.add_parser('tools')
+	t_subparsers = t_parser.add_subparsers()
+
+	# 'tools hash' subcommand
+	parser = t_subparsers.add_parser('hash')
+	parser.add_argument("recipe_dir", help="the recipe dir to hash.", type=str)
+	parser.set_defaults(func=main_tools_hash)
 
 	args = tl_parser.parse_args()
 
