@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, os.path, shutil, subprocess, re, sys, glob, tempfile
+import os, os.path, shutil, subprocess, re, sys, glob, tempfile, contextlib
 from collections import OrderedDict, namedtuple
 import requests, sqlalchemy
 from requests.exceptions import HTTPError
@@ -763,9 +763,20 @@ def add_missing_deps(conda_name, workdir):
 	return deps
 
 def load_manifest(fn):
-	# loads a manifest created by lsst_build
-	with open(fn) as fp:
-		lines = fp.read().split('\n')
+	prefix_build = 'build:'
+
+	# is fn a reference to a tag in versiondb (something like 'build:b1497')?
+	if fn.startswith(prefix_build):
+		url = 'https://raw.githubusercontent.com/lsst/versiondb/master/manifests/%s.txt' % fn[len(prefix_build):]
+		import urllib2
+		print url
+		with contextlib.closing(urllib2.urlopen(url)) as fp:
+			lines = fp.read().split('\n')
+	else:
+		# a regular file
+		with open(fn) as fp:
+			lines = fp.read().split('\n')
+
 
 	lines = lines[2:]
 	for line in lines:
@@ -935,7 +946,10 @@ if __name__ == "__main__":
 
 	# gen subcommand	
 	parser = subparsers.add_parser('build')
-	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. The format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests", type=str)
+	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. "
+		+ "If given as 'build:<buildtag>' (e.g., build:b1488), the manifest with that build ID will be looked up in versiondb.git. "
+		+ "Note: the file format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests."
+		, type=str)
 	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
 	parser.add_argument("--dont-build", help="generate the recipes but don't build the packages.", action="store_true")
 	parser.set_defaults(func=main_build)
