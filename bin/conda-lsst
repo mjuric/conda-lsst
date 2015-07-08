@@ -3,6 +3,7 @@
 import os, os.path, shutil, subprocess, re, sys, glob, tempfile
 from collections import OrderedDict, namedtuple
 import requests, sqlalchemy
+from requests.exceptions import HTTPError
 
 def conda_name_for(product):
 	# return the conda package name for a product
@@ -289,7 +290,15 @@ class ReleaseDB(object):
 
 		urlbase = '%s%s/' % (channel.urlbase, self.platform)
 
-		repodata = self.get_repodata(channel.urlbase)
+		try:
+			repodata = self.get_repodata(channel.urlbase)
+		except HTTPError:
+			# Local channels may not exist if nothing has been built with conda-build yet
+			if channel.urlbase.startswith('file://'):
+				print "  not found. skipping."
+				return
+			else:
+				raise
 
 		# Fetch each package, extract and hash its recipe
 		import tarfile
