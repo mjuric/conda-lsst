@@ -1,4 +1,4 @@
-# Build Conda recipes for the LSST stack
+# Package the [LSST Software Stack](http://dm.lsst.org) with [Conda](http://conda.pydata.org)
 
 ## Overview
 
@@ -8,13 +8,13 @@ them, and upload to a remote web server (or a hosted service such as
 [anaconda.org](http://anaconda.org)) from where they will be installable
 using `conda install`.
 
-The recipes are generated using the information stored in
-[EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
-that LSST uses internally.
-
 You *only* need this code if you wish to create and distribute your own build
 of the LSST stack; `conda-lsst` is **not** needed to just use the LSST
 codes.
+
+The recipes are generated using the information stored in
+[EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
+that LSST uses internally.
 
 This code is beta quality; it is expected to work on OS X and Linux.
 
@@ -39,19 +39,20 @@ export PATH="$PWD/bin:$PATH"
 # If on Linux, build patchelf v0.8
 conda build recipes/static/patchelf
 
-# Build the two prerequisites
-(cd recipes/static/eups           && conda build . && binstar upload -u lsst $(conda build . --output) )
-(cd recipes/static/legacy_configs && conda build . && binstar upload -u lsst $(conda build . --output) )
+# Build the prerequisites
+conda build recipes/static/eups
+conda build recipes/static/legacy_configs
 
 # Build conda packages for LSST codes (the recipes will be stored in recipes/generated subdirectory)
-conda lsst build samples/b1488.txt sims_maf
+conda lsst build build:b1488 lsst_distrib lsst_sims
 
 # Option #1: Upload to anaconda.org
 binstar login			# Run this once to log in with your anaconda.org credentials
 conda lsst upload --user lsst --channel dev	# replace user/channel with your credentials
 
 # Option #2: Upload to a remote web server
-conda lsst upload ssh localhost public_html/conda/dev --conda /path/to/bin/conda/on/the/remote/server
+conda lsst upload ssh lsst-dev.ncsa.illinois.edu public_html/conda/dev \
+      --conda /path/to/bin/conda/on/the/remote/server
 ```
 
 `conda-lsst` is smart about not rebuilding packages that have already been
@@ -62,7 +63,7 @@ Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
 
-## Installing LSST codes using Conda
+## Installing LSST software using Conda
 
 As this is beta-qality code, it's recommended to install LSST
 conda packages into a separate [Conda
@@ -85,7 +86,7 @@ Then, to install (for example) `sims_maf`, run:
 conda install lsst-sims-maf
 ```
 
-## Running Conda-delivered LSST codes
+## Running Conda-delivered LSST software
 
 Though delivered through Conda, the LSST codes are still managed by EUPS
 under the hub.  You'll therefore need to set up the EUPS environment and the
