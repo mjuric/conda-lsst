@@ -28,7 +28,7 @@ if [[ ! -f "$PWD/miniconda/.installed" ]]; then
 
 	rm -f "$MINICONDA_SH"
 	rm -rf "$PWD/miniconda"
-	wget https://repo.continuum.io/miniconda/"$MINICONDA_SH"
+	curl -O https://repo.continuum.io/miniconda/"$MINICONDA_SH"
 	bash "$MINICONDA_SH" -b -p "$PWD/miniconda"
 	rm -f "$MINICONDA_SH"
 
