@@ -445,14 +445,7 @@ Older systems are unsupported because they utilise a different
 implementation of the C++ standard library (`libstdc++` vs `libc++`).
 
 On Linux, we build on a RHEL6-compatible system, with `gcc` 4.4 and `glibc`
-2.12. Running on newer distributions *should* work, though the guarantee is
-not as strong as the C++ standard library ABI has been unstable for C++11
-which we've begun using recently (e.g., see [this
-note](https://gcc.gnu.org/wiki/Cxx11AbiCompatibility) about C++11 ABI
-compatibility).
-
-In the long-run, it would probably be wise to package the libstdc++ libraries
-with the distributed packages.
+2.12. Running on any newer distribution is expected to work.
 
 #### Naming and Versioning
 
