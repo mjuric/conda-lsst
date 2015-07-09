@@ -76,14 +76,6 @@ is typically `build`.
 
 ## Installing LSST software using Conda
 
-As this is beta-qality code, it's recommended to install LSST
-conda packages into a separate [Conda
-environment](http://conda.pydata.org/docs/using/envs.html):
-
-```bash
-conda create --name lsst ipython-notebook
-source activate lsst
-```
 The LSST stack builds are kept on http://eupsforge.net/conda/dev channel; you'll
 need to tell `conda` about it:
 
