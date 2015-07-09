@@ -51,6 +51,7 @@ missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
 	conda_name_for('pyfits')                   : [('pypi', 'stsci.distutils')],
 	conda_name_for('sims_catalogs_generation') : [('conda', 'sqlalchemy')],
 	conda_name_for('sims_photUtils')           : [('conda', 'scipy'), ('conda', 'astropy')],
+	conda_name_for('sims_maf')                 : [('conda', 'ipython-notebook >=3.0')],
 
 	'stsci.distutils'          : [('pypi', 'd2to1')],	# needed by pyfits
 }
