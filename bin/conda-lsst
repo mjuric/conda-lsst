@@ -644,10 +644,10 @@ def patch_buildinfo(conda_name, version, recipe_dir, build_string_prefix):
 	with open(metafn) as fp:
 		meta = fp.read()
 	if not re.search(r'^build:.*$', meta, re.MULTILINE):
+		meta += "\nbuild:\n"
+		meta += "  number: 0\n"
 		with open(metafn, "w") as fp:
 			fp.write(meta)
-			print >>fp, "\nbuild:"
-			print >>fp, "  number: 0"
 
 	# Find the apropriate buildnum and buildstring
 	buildnum, build_string, is_built = get_build_info(conda_name, version, recipe_dir, build_string_prefix)
