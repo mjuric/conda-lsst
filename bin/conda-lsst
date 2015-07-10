@@ -132,7 +132,6 @@ class Package(Base):
 	__tablename__ = 'packages'
 	__table_args__ = (
 		UniqueConstraint('name', 'version', 'build_number', 'channel_id'),
-		UniqueConstraint('recipe_hash', 'channel_id'),				# no two recipes can be identical on the same channel
 		{'sqlite_autoincrement': True}
 	)
 
