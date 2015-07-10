@@ -88,6 +88,12 @@ channels = [
 	'http://eupsforge.net/conda/dev/',
 ]
 
+# Construct the platform string (e.g., osx-64 or linux-64, etc.)
+# FIXME: there has to be a cleaner way to do this;
+# see how Conda deduces the platform string internally)
+import platform
+platform = "%s-%s" % ('osx' if sys.platform == 'darwin' else 'linux', platform.architecture()[0][:2])
+
 ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built', 'is_ours'])
 
 # A mapping from conda_name -> ProductInfo instance
@@ -157,22 +163,14 @@ def get_or_create(session, model, **kwargs):
 class ReleaseDB(object):
 	server   = None
 	channel  = None
-	platform = None
 
 	_db = None		# The loaded database (dict of dicts)
 
 	def __init__(self):
 		self._db = {}
 
-		# Detect the platform (FIXME: there has to be a cleaner way to do this;
-		# see how Conda deduces the platform string internally)
-		import platform
-		bits = platform.architecture()[0][:2]	# 64 or 32
-		plat = 'osx' if sys.platform == 'darwin' else 'linux'
-		self.platform = "%s-%s" % (plat, bits)
-
 		# open the database, ensure the tables are defined
-		dbfn = os.path.join(root_dir, 'pkginfo-cache', self.platform, 'cache-db.sqlite')
+		dbfn = os.path.join(root_dir, 'pkginfo-cache', platform, 'cache-db.sqlite')
 		try:
 			os.makedirs(os.path.dirname(dbfn))
 		except OSError:
@@ -187,7 +185,7 @@ class ReleaseDB(object):
 
 	def get_repodata(self, urlbase):
 		# Fetch and parse repodate.json
-		urlbase = '%s%s/' % (urlbase, self.platform)
+		urlbase = '%s%s/' % (urlbase, platform)
 		url = urlbase + 'repodata.json'
 		r = requests.get(url)
 		r.raise_for_status()
@@ -209,7 +207,7 @@ class ReleaseDB(object):
 		pkg2fn = dict()
 		for c in self._session.query(Channel).filter(Channel.urlbase.like('file://%')).all():
 			pkg2fn[p.channel.urlbase] = pkgs = dict()
-			base = os.path.join(p.channel.urlbase[len('file://'):], self.platform)
+			base = os.path.join(p.channel.urlbase[len('file://'):], platform)
 			repodata = self.get_repodata(c.urlbase)
 			for fn, pkginfo in repodata[u'packages'].iteritems():
 				name, version, build_number = pkginfo['name'], pkginfo['version'], pkginfo['build_number']
@@ -293,9 +291,9 @@ class ReleaseDB(object):
 		self._session.commit()
 
 	def reindex_channel(self, channel):
-		print "updating built package cache [from %s%s] " % (channel.urlbase, self.platform),
+		print "updating built package cache [from %s%s] " % (channel.urlbase, platform),
 
-		urlbase = '%s%s/' % (channel.urlbase, self.platform)
+		urlbase = '%s%s/' % (channel.urlbase, platform)
 
 		try:
 			repodata = self.get_repodata(channel.urlbase)
@@ -847,7 +845,7 @@ def main_upload_ssh(args):
 	conda  = args.conda		# '/ssd/mjuric/projects/lsst_packaging_conda/miniconda/bin/conda'
 
 	# append platform string
-	dir = os.path.join(dir, db.platform)
+	dir = os.path.join(dir, platform)
 
 	dest = '%s:%s' % (server, dir)
 	try:
