@@ -19,9 +19,12 @@ def conda_name_for(product):
 	else:
 		return lsst_prefix + transformed_name
 
+# Deduce the directory we're running from
+root_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
 # Output directory where the package specs will be generated (and the rebuild script)
 # DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
-output_dir = "recipes/generated"
+output_dir = os.path.join(root_dir, "recipes/generated")
 
 # Products that already exist in Anaconda; we'll skip building those (but will depend on them)
 internal_products = set("python swig libevent flask twisted scons numpy protobuf matplotlib".split())
@@ -169,7 +172,7 @@ class ReleaseDB(object):
 		self.platform = "%s-%s" % (plat, bits)
 
 		# open the database, ensure the tables are defined
-		dbfn = os.path.join('pkginfo-cache', self.platform, 'cache-db.sqlite')
+		dbfn = os.path.join(root_dir, 'pkginfo-cache', self.platform, 'cache-db.sqlite')
 		try:
 			os.makedirs(os.path.dirname(dbfn))
 		except OSError:
@@ -505,7 +508,8 @@ def create_deps_string(deps, SEP='\n    - '):
 
 def fill_out_template(dest_file, template_file, **variables):
 	# fill out a template file
-	with open(template_file) as fp:
+	tf = os.path.join(root_dir, 'templates', template_file)
+	with open(tf) as fp:
 		template = fp.read()
 
 	text = template % variables
@@ -517,7 +521,7 @@ def fill_out_template(dest_file, template_file, **variables):
 		fp.write(text)
 
 def prepare_patches(product, dir):
-	patchdir = os.path.join('patches', product)
+	patchdir = os.path.join(root_dir, 'patches', product)
 	if not os.path.isdir(patchdir):
 		return ''
 
@@ -588,13 +592,13 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	SEP = 'setup '
 	setups = SEP + ('\n'+SEP).join(setups) if setups else ''
 
-	fill_out_template(os.path.join(dir, 'build.sh'), 'templates/build.sh.template',
+	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
 		setups = setups,
 		eups_tags = ' '.join(eups_tags)
 	)
 
 	# pre-link.sh (to add the global tags)
-	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'templates/pre-link.sh.template',
+	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'pre-link.sh.template',
 		product = product,
 	)
 
@@ -603,7 +607,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	reqstr = create_deps_string(deps)
 
 	meta_yaml = os.path.join(dir, 'meta.yaml')
-	fill_out_template(meta_yaml, 'templates/meta.yaml.template',
+	fill_out_template(meta_yaml, 'meta.yaml.template',
 		productNameLowercase = conda_name.lower(),
 		version = version,
 		gitrev = sha,
@@ -915,7 +919,7 @@ def main_build(args):
 			print "  already built: %s-%s" % (pi.conda_name, conda_version)
 	print "done."
 
-	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'templates/rebuild.sh.template',
+	fill_out_template(os.path.join(output_dir, 'rebuild.sh'), 'rebuild.sh.template',
 		output_dir = output_dir,
 		rebuilds = '\n'.join(rebuilds)
 		)
