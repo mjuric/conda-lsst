@@ -82,6 +82,8 @@ override_gitrev = {
 #
 # Conda channels where we should look for
 #
+# IMPORTANT: these must end with a slash ('/') !!!!
+#
 from conda_build.config import croot
 channels = [
 	'file://%s/' % croot,
@@ -930,6 +932,27 @@ def main_build(args):
 		print "Generation completed; The recipes are in %s directory." % (output_dir)
 		print "Run 'bash %s/rebuild.sh' to build them." % (output_dir)
 
+def conda_knows_our_channels():
+	# make sure all channels listed in `channels` are known to conda (i.e., they're
+	# in one of the .condarc files)
+
+	from urlparse import urljoin, urlparse
+	import conda.config
+	conda_rc_urls = set( [ urljoin(conda.config.channel_alias, u).rstrip('/ ') for u in conda.config.get_rc_urls() ] )
+
+	my_urls = set( [ s.rstrip('/ ') for s in channels if urlparse(s).scheme != 'file' ] )
+
+	missing = my_urls - conda_rc_urls
+	if missing:
+		print "error: some channels that conda-lsst knows about don't appear in your ~/.condarc file. " + \
+		      "you must add them before continuing; otherwise recipe builds may fail."
+		print "run the following:\n"
+		for url in missing:
+			print "    conda config --add channels %s" % url
+		print
+
+	return len(missing) == 0
+
 if __name__ == "__main__":
 	from requests_file import FileAdapter	# run 'pip install requests_file' if this fails
 	global requests
@@ -986,6 +1009,10 @@ if __name__ == "__main__":
 	parser.set_defaults(func=main_tools_hash)
 
 	args = tl_parser.parse_args()
+
+	# Make sure channels are in ~/.condarc
+	if not conda_knows_our_channels():
+		exit(-1)
 
 	# Load the built products cache database
 	db = ReleaseDB()
