@@ -1,0 +1,21 @@
+diff --git a/../../../galsim-eupspkg.cfg.sh b/ups/eupspkg.cfg.sh
+index 8c0e8d9..644cd68 100644
+--- ups/eupspkg.cfg.sh
++++ ups/eupspkg.cfg.sh
+@@ -1,7 +1,16 @@
+ export SCONSFLAGS=$SCONSFLAGS" USE_UNKNOWN_VARS=true TMV_DIR="$TMV_DIR" PREFIX="$PREFIX" PYPREFIX="$PREFIX"/lib/python EXTRA_LIB_PATH="$TMV_DIR"/lib EXTRA_INCLUDE_PATH="$TMV_DIR"/include"
+ 
++# Work around the incorrect install name of Anaconda's libpython2.7.dylib (part 1/2)
++export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_DEFAULT_ENV/lib"
++
+ install()
+ {
+     default_install
+     cp -r include $PREFIX/
++
++    if [[ $OSTYPE == darwin* ]]; then
++        # Work around the incorrect install name of Anaconda's libpython2.7.dylib (part 2/2)
++        echo "Fixing @rpath in _galsim.so"
++        install_name_tool -change libpython2.7.dylib @rpath/libpython2.7.dylib "$PREFIX"/lib/python/galsim/_galsim.so
++    fi
+ }

@@ -1,8 +1,0 @@
---- ups/lsst_sims.table	2015-07-04 15:57:02.209058004 -0500
-+++ ups/lsst_sims.table	2015-07-04 15:57:15.819035812 -0500
-@@ -1,5 +1,4 @@
- setupRequired(sims_maf)
--setupRequired(sims_GalSimInterface)
- setupRequired(sims_catUtils)
- setupRequired(sims_catalogs_generation)
- setupRequired(sims_catalogs_measures)
