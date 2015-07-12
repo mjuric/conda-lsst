@@ -357,8 +357,7 @@ files for builds and instead use something more standard, like `pkg-config`.
 #### Skipped products
 
 The code currently skips over a few (optional) products, most notably
-`afw-data` (that is very large) and `GalSim` (that has trouble building and
-needs to be fixed). This is hardcoded in the `skip_products` variable.
+`afw-data` (that is very large). This is hardcoded in the `skip_products` variable.
 
 #### Patching
 
