@@ -21,6 +21,14 @@ if [[ "$OSTYPE" == darwin* ]]; then
 	export ARCHFLAGS='-headerpad_max_install_names'
 fi
 
+if [[ -f "$CONDA_DEFAULT_ENV/lib/libstdc++.so.6" ]]; then
+	#
+	# We're using a conda-supplied standard library (and probably
+	# the compiler).
+	#
+	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CONDA_DEFAULT_ENV/lib"
+fi
+
 # Add Anaconda libs to LIBRARY_PATH; otherwise, the linker can't resolve
 # the following situation:
 #
@@ -34,15 +42,16 @@ if [[ -f SConstruct ]]; then
 	#
 	# Subvert scons environment cleaning
 	#
-	trap '{ rm -f "$CONDA_DEFAULT_ENV/bin/c++"; }' EXIT
-	CXXBIN=$(which c++)
-	cat > "$CONDA_DEFAULT_ENV/bin/c++" <<-EOT
+	CXX=${CXX:-c++}
+	trap '{ rm -f "$CONDA_DEFAULT_ENV/bin/$CXX"; }' EXIT
+	CXXBIN=$(which $CXX)
+	cat > "$CONDA_DEFAULT_ENV/bin/$CXX" <<-EOT
 		#!/bin/bash
 		export LIBRARY_PATH="$LIBRARY_PATH"
 		exec "$CXXBIN" "\$@"
 	EOT
-	chmod +x "$CONDA_DEFAULT_ENV/bin/c++"
-	cat $CONDA_DEFAULT_ENV/bin/c++
+	chmod +x "$CONDA_DEFAULT_ENV/bin/$CXX"
+	cat $CONDA_DEFAULT_ENV/bin/$CXX
 fi
 
 PRODUCT=$(basename ups/*.table .table)
