@@ -13,6 +13,7 @@ def conda_name_for(product):
 		pass
 
 	transformed_name = product.replace('_', '-')
+	transformed_name = transformed_name.lower()
 
 	if product in dont_prefix_products:
 		return transformed_name
@@ -517,9 +518,6 @@ def conda_version_spec(conda_name):
 def create_yaml_list(elems, SEP='\n    - '):
 	return (SEP + SEP.join(elems)) if elems else ''
 
-def create_deps_string(deps, SEP='\n    - '):
-	return create_yaml_list([dep.lower() for dep in deps], SEP)
-
 def fill_out_template(dest_file, template_file, **variables):
 	# fill out a template file
 	tf = os.path.join(root_dir, 'templates', template_file)
@@ -618,7 +616,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 
 	# meta.yaml
 	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
-	reqstr = create_deps_string(deps)
+	reqstr = create_yaml_list(deps)
 
 	meta_yaml = os.path.join(dir, 'meta.yaml')
 	fill_out_template(meta_yaml, 'meta.yaml.template',
@@ -717,8 +715,8 @@ def gen_pypi_package(name, products, workdir):
 	deps = add_missing_deps(name, tmpdir)
 	if deps:
 		# patch the generated meta.yaml file to add the missing dependenceis
-		build_req = create_deps_string(deps)
-		run_req   = create_deps_string(deps)
+		build_req = create_yaml_list(deps)
+		run_req   = create_yaml_list(deps)
 
 		metafn = os.path.join(tmpdir, name, 'meta.yaml')
 		with open(metafn) as fp:
