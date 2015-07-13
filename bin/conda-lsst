@@ -70,6 +70,20 @@ special_version_parsers = { # map of eups_product_name -> [ parser_function1, pa
 # is a Conda-installed and managed EUPS product
 eups_tags = [ 'current', 'conda' ]
 
+#
+# Patterns to find upstream repositories
+#
+git_eupsforge = 'https://github.com/EUPSForge/%s'
+git_lsst      = 'https://github.com/LSST/%s'
+
+# explicit product -> pattern map
+git_upstreams = {
+	'gcc': 	git_eupsforge
+}
+
+# default pattern
+git_upstream_default = git_lsst
+
 # Override sha1s -- these are temporary hacks until the fixes below get merged
 override_gitrev = {
 #	'sconsUtils':    'u/mjuric/osx-deployment-target',		# Now handled via patch
@@ -576,7 +590,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	deps = sorted(flatten_deps(deps))
 
 	# Where is the source?
-	giturl = 'https://github.com/LSST/%s' % (product)
+	giturl = git_upstreams.get(product, git_upstream_default)  % (product)
 
 	#
 	# Create the Conda packaging spec files
