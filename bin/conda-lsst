@@ -313,7 +313,7 @@ class ReleaseDB(object):
 		urlbase = '%s%s/' % (channel.urlbase, platform)
 
 		try:
-			repodata = self.get_repodata(channel.urlbase)
+			repodata_ = self.get_repodata(channel.urlbase)
 		except HTTPError:
 			# Local channels may not exist if nothing has been built with conda-build yet
 			if channel.urlbase.startswith('file://'):
@@ -322,12 +322,26 @@ class ReleaseDB(object):
 			else:
 				raise
 
-		# Fetch each package, extract and hash its recipe
-		import tarfile
-		for package, pkginfo in repodata[u'packages'].iteritems():
+		# convert to something more useful...
+		repodata = {}
+		for package, pkginfo in repodata_[u'packages'].iteritems():
 			name, version = [ pkginfo[s].encode('utf-8') for s in ['name', 'version'] ]
 			build_number = pkginfo['build_number']
+			repodata[(name, version, build_number)] = package
 
+		# Delete all cache entries that don't have a counterpart in repodata
+		# (e.g., files may have been deleted from the repository)
+		for package in channel.packages:
+			key = (package.name, package.version, package.build_number)
+			if key not in repodata:
+				#print "Would delete %s" % str(key)
+				self._session.delete(package)
+				sys.stdout.write("-")
+				sys.stdout.flush()
+
+		# Fetch each package, extract and hash its recipe
+		import tarfile
+		for (name, version, build_number), package in repodata.iteritems():
 			# Skip if we already know about this package
 			if channel.packages.filter(Package.name == name, Package.version == version, Package.build_number == build_number).count():
 				# print "already know about %s, skipping." % package
