@@ -69,17 +69,9 @@ echo "PRODUCT='$PRODUCT'" >> _build.sh
 echo 'eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic $@' >> _build.sh
 chmod +x _build.sh
 
-# build
+# configure, build, install
 eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic config
 eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic build
-
-# Make sure no unit tests failed (shouldn't be needed any more, scons checks exit status now)
-#if [ -d  tests/.tests ] && \
-#    [ "`ls tests/.tests/*\.failed 2> /dev/null | wc -l`" -ne 0 ]; then
-#    echo "*** Failed unit tests."; 
-#    exit 1 
-#fi
-
 eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic install
 
 # compile all .py and .cfg files so they don't get picked up as new by conda
