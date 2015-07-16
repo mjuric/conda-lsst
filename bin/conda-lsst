@@ -835,26 +835,14 @@ def load_manifest(fn):
 		yield (product, sha, version, deps)
 
 def setup_toolchain():
-	# This code is only supported on Linux right now
-	if not sys.platform.startswith('linux'):
-		return
+	# test if we're building with conda's gcc. If so,
+	# embed the dependency on gcc runtime libs package
+	ret = subprocess.check_output(['conda', 'list', 'gcc', '--json']).strip()
+	if ret != "{}":
+		toolchain_deps.add("libgcc")
 
-	# test if c++ is in the default location (/usr/bin/c++ or /bin/c++)
-	# if it's not, assume this is a build with an external compiler and
-	# add 'libgcc' to the list of dependencies.
-	from distutils.spawn import find_executable
-	gcc = find_executable("c++")
-	if gcc in ['/usr/bin/c++', '/bin/c++']:
-		return
-
-	# Embed dependency on runtime libs
-	# Don't need to check the version since libgcc is backwards compatible.
-	# FIXME: we should really check that the compiler version <= available
-	# libgcc version.
-	toolchain_deps.add("libgcc")
-
-	print "Detected non-system compiler (%s):" % gcc
-	print "  ==> adding libgcc as dependency of generated packages."
+		print "Detected conda-supplied compiler:"
+		print "  ==> adding libgcc as dependency of generated packages."
 
 def test_release_db():
 	db = ReleaseDB()

@@ -21,12 +21,14 @@ if [[ "$OSTYPE" == darwin* ]]; then
 	export ARCHFLAGS='-headerpad_max_install_names'
 fi
 
-if [[ -f "$CONDA_DEFAULT_ENV/lib/libstdc++.so.6" ]]; then
+## Check if the C++ compiler lives in the root conda environment directory
+if [[ $(dirname $(which ${CXX:-c++})) -ef "$SYS_PREFIX"/bin ]] ; then
 	#
-	# We're using a conda-supplied standard library (and probably
-	# the compiler).
+	# We're using conda-supplied compiler; make sure it can find
+	# its libraries
 	#
 	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CONDA_DEFAULT_ENV/lib"
+	export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$CONDA_DEFAULT_ENV/lib"
 fi
 
 # Add Anaconda libs to LIBRARY_PATH; otherwise, the linker can't resolve
