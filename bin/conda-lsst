@@ -837,8 +837,11 @@ def load_manifest(fn):
 def setup_toolchain():
 	# test if we're building with conda's gcc. If so,
 	# embed the dependency on gcc runtime libs package
-	ret = subprocess.check_output(['conda', 'list', 'gcc', '--json']).strip()
-	if ret != "{}":
+	try:
+		ret = subprocess.check_output(['conda', 'list', 'gcc', '--json']).strip()
+	except subprocess.CalledProcessError:
+		pass
+	else:
 		toolchain_deps.add("libgcc")
 
 		print "Detected conda-supplied compiler:"
