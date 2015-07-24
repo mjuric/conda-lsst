@@ -57,13 +57,14 @@ if [[ -f SConstruct ]]; then
 fi
 
 PRODUCT=$(basename ups/*.table .table)
+EUPS_VERSION="%(eups_version)s"
 PREFIX="$PREFIX/opt/lsst/$PRODUCT"
 
 # initialize EUPS
 source eups-setups.sh
 
 # prepare
-eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic prep
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic prep
 
 # setup dependencies (just for the environmental variables, really)
 # FIXME: a command should be added to eupspkg to just get the envvars
@@ -77,13 +78,13 @@ export
 echo '#!/bin/bash' > _build.sh
 export >> _build.sh
 echo "PRODUCT='$PRODUCT'" >> _build.sh
-echo 'eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic $@' >> _build.sh
+echo 'eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic $@' >> _build.sh
 chmod +x _build.sh
 
 # configure, build, install
-eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic config
-eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic build
-eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic install
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic config
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic build
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic install
 
 # compile all .py and .cfg files so they don't get picked up as new by conda
 # when building other packages
@@ -97,7 +98,7 @@ if ls "$PREFIX/ups"/*.cfg 1> /dev/null 2>&1; then
 fi
 
 # declare to EUPS
-eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$PKG_VERSION" FLAVOR=generic decl
+eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic decl
 
 # tag as requested
 TAGFILE="$EUPS_PATH/ups_db/global.tags"
@@ -106,7 +107,7 @@ for TAG in %(eups_tags)s; do
 	test -f "$TAGFILE" && echo -n " " >> "$TAGFILE"
 	echo -n "$TAG" >> "$TAGFILE"
 
-	eups declare -t $TAG "$PRODUCT" "$PKG_VERSION"
+	eups declare -t $TAG "$PRODUCT" "$EUPS_VERSION"
 done
 
 # move the tags file to our ups dir; it will be merged by the pre-link.sh

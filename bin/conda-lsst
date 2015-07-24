@@ -628,6 +628,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 
 	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
 		setups = setups,
+		eups_version = eups_version,
 		eups_tags = ' '.join(eups_tags)
 	)
 
