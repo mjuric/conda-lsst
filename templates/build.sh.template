@@ -97,6 +97,15 @@ if ls "$PREFIX/ups"/*.cfg 1> /dev/null 2>&1; then
 	"$PYTHON" -m py_compile "$PREFIX/ups"/*.cfg
 fi
 
+# strip debugging symbols
+cd "$PREFIX" && (
+	find . -type f -a \( -name '*.dylib' -o -name '*.so' -o -perm -111 \) -exec file --mime-type {} \; | grep "application/octet-stream" | cut -f 1 -d : | \
+		while read -r FN; do
+			echo "Stripping debug symbols from $FN."
+			strip -S "$FN"
+		done
+)
+
 # declare to EUPS
 eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic decl
 
