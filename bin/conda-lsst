@@ -956,6 +956,11 @@ def main_build(args):
 	# Detect/adjust toolchain
 	setup_toolchain()
 
+	# Add any global EUPS tags
+	global global_eups_tags
+	global_eups_tags += [ tag.strip() for tag in args.add_eups_tags.split(',') ]
+	print global_eups_tags
+
 	# Get the (ordered) list of EUPS products to build
 	manifest, tags = build_manifest_for_products(args.products)
 
@@ -1047,6 +1052,7 @@ if __name__ == "__main__":
 		, type=str)
 	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
 	parser.add_argument("--dont-build", help="generate the recipes but don't build the packages.", action="store_true")
+	parser.add_argument("--add-eups-tags", help="comma-separated list of EUPS tags to attach to generated packages.", type=str, default='')
 	parser.set_defaults(func=main_build)
 
 	# upload subcommand
