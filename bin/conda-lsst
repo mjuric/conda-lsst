@@ -73,10 +73,9 @@ special_version_parsers = { # map of eups_product_name -> [ parser_function1, pa
 }
 
 # The EUPS tags to apply to all products build in this run
-# You should always leave 'current' (unless you know what you're doing)
-# You should also leave 'conda', to allow the user to see right away that this
-# is a Conda-installed and managed EUPS product
-eups_tags = [ 'current', 'conda' ]
+# You should always leave 'current' so that when a new package is installed
+# it will become the default one that is set up.
+global_eups_tags = [ 'current' ]
 
 #
 # Patterns to find upstream repositories
@@ -577,7 +576,7 @@ def prepare_patches(product, dir):
 	patches = '  patches:' + create_yaml_list(patchlist)
 	return patches
 
-def gen_conda_package(product, sha, eups_version, eups_deps):
+def gen_conda_package(product, sha, eups_version, eups_deps, eups_tags):
 	# What do we call this product in conda?
 	conda_name = conda_name_for(product)
 
@@ -641,7 +640,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
 		setups = setups,
 		eups_version = eups_version,
-		eups_tags = ' '.join(eups_tags)
+		eups_tags = ' '.join(eups_tags + global_eups_tags)
 	)
 
 	# pre-link.sh (to add the global tags)
@@ -829,23 +828,28 @@ def load_manifest(fn):
 		with open(fn) as fp:
 			lines = fp.read().split('\n')
 
+	def parse_manifest_lines(lines):
+		for line in lines:
+			line = line.strip()
+			if not line:
+				continue
+			if line.startswith('#'):
+				continue
 
-	lines = lines[2:]
-	for line in lines:
-		line = line.strip()
-		if not line:
-			continue
-		if line.startswith('#'):
-			continue
+			try:
+				(product, sha, version, deps) = line.split()
+				deps = deps.split(',')
+			except ValueError:
+				(product, sha, version) = line.split()
+				deps = []
 
-		try:
-			(product, sha, version, deps) = line.split()
-			deps = deps.split(',')
-		except ValueError:
-			(product, sha, version) = line.split()
-			deps = []
+			yield (product, sha, version, deps)
 
-		yield (product, sha, version, deps)
+	build_id = None
+	if lines[1].startswith('BUILD='):
+		build_id = lines[1][len('BUILD='):]
+
+	return build_id, list( parse_manifest_lines(lines[2:]) )
 
 def setup_toolchain():
 	# test if we're building with conda's gcc. If so,
@@ -926,9 +930,12 @@ def main_tools_hash(args):
 	db.hash_recipe(args.recipe_dir, verbose=True)
 
 def build_manifest_for_products(top_level_products):
-	# Load the manifest
+	# Load the manifest. Returns the OrderedDict and a set of EUPS tags
+	# to associate with the manifest
+
 	products = {}
-	for (product, sha, version, deps) in load_manifest(args.manifest):
+	build_id, manifest_lines = load_manifest(args.manifest)
+	for (product, sha, version, deps) in manifest_lines:
 		products[product] = (product, sha, version, deps)
 
 	# Extract the products of interest (and their dependencies)
@@ -943,14 +950,14 @@ def build_manifest_for_products(top_level_products):
 	for product in top_level_products:
 		bottom_up_add_to_manifest(product)
 
-	return manifest
+	return manifest, [ build_id ] if build_id is not None else []
 
 def main_build(args):
 	# Detect/adjust toolchain
 	setup_toolchain()
 
 	# Get the (ordered) list of EUPS products to build
-	manifest = build_manifest_for_products(args.products)
+	manifest, tags = build_manifest_for_products(args.products)
 
 	# Generate conda package files and build driver script
 	shutil.rmtree(output_dir, ignore_errors=True)
@@ -963,7 +970,7 @@ def main_build(args):
 		# override gitrevs (these are temporary hacks/fixes; they should go away when those branches are merged)
 		sha = override_gitrev.get(product, sha)
 
-		gen_conda_package(product, sha, version, deps)
+		gen_conda_package(product, sha, version, deps, tags)
 	print "done."
 
 	#
