@@ -448,13 +448,13 @@ def eups_to_conda_version(product, eups_version):
 	# Convert EUPS version string to Conda-compatible pieces
 	#
 	# Conda version has three parts:
-	#	version number: a version number that should be PEP 386 compliant (though Conda's impl. is buggy)
+	#	version number: a version number that should be something Conda can parse and order
 	#	build string: not used in version comparison, can be anything
 	#	build number: if two versions are equal, build number is used to break the tie
-	# Conda also doesn't like '+' nor '-' in versions
-	#  Furthermore, it parses the version itself as described in the regex at:
-	#     https://github.com/conda/conda/blob/master/conda/verlib.py
-	#  which should be PEP 386 compliant (and very limited). We do our best here to fit into that straitjacket.
+	#
+	#  Furthermore, it parses the version itself as described in the VersionOrder object docstring at:
+	#      https://github.com/conda/conda/blob/master/conda/resolve.py
+	#  We do our best here to fit into that format.
 
 	# hardcoded for now. This should be incremented on a case-by-case basis to
 	# push fixes that are Conda-build related
@@ -501,7 +501,7 @@ def eups_to_conda_version(product, eups_version):
 		if not match: return None, None
 
 		branch, sha1 = match.groups()
-		return "%s_g%s" % (branch, sha1), sha1
+		return "%s" % (branch), sha1
 
 	def parse_default(version):
 		return version, ''
@@ -518,15 +518,24 @@ def eups_to_conda_version(product, eups_version):
 	if re.match(r'^1[0-9]\.[0-9]+.*$', version):
 		version = "0." + version
 
-	# add plusver to version as .0000
+	# add plusver to version as .postNNN
 	if plusver:
-		version += ".%04d" % int(plusver)
+		version += ".post%d" % int(plusver)
 
 	# remove any remaining '-'
 	if '-' in version:
 		version = version.replace('-', '_')
 
-	return version, build_string_prefix, buildnum
+	# Make sure our version is conda-compatible
+	try:
+		from conda.resolve import normalized_version
+		normalized_version(version)
+
+		compliant = True
+	except:
+		compliant = False
+
+	return version, build_string_prefix, buildnum, compliant
 
 def conda_version_spec(conda_name):
 	pi = products[conda_name]
@@ -573,11 +582,14 @@ def gen_conda_package(product, sha, eups_version, eups_deps):
 	conda_name = conda_name_for(product)
 
 	# convert to conda version
-	version, build_string_prefix, buildnum = eups_to_conda_version(product, eups_version)
+	version, build_string_prefix, buildnum, compliant = eups_to_conda_version(product, eups_version)
+
+	# warn if the version is not compliant
+	problem = "" if compliant else " [WARNING: version format incompatible with conda]"
 
 	# write out a progress message
 	#report_progress(conda_name, "%s-%s" % (version, build_string))
-	report_progress(conda_name, "%s" % (version))
+	report_progress(conda_name, "%s%s" % (version, problem))
 
 	#
 	# process dependencies
