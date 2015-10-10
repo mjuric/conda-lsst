@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# Usage: extract-version <repoURL> <SHA1>
+#
+# Return a formatted (UTC) timestamp for the SHA1 requested in the repo at
+# repoURL.  Used by conda-lsst to deduce an orderable version for EUPS
+# versions where ordering cannot be deduced (i.e., only the SHA1 is given).
+#
+# Caches the cloned repository in repo-cache/<reponame>,git
+#
+
+# bail out in case of error
+set -e
+
+if [[ -z "$1" || -z "$2" ]]; then
+	echo "usage: $(basename $0) <repoURL> <SHA1>"
+	exit -1
+fi
+
+REMOTE="$1"
+SHA1="$2"
+
+# change into base directory
+cd "$(dirname $BASH_SOURCE)/.."
+
+mkdir -p repo-cache && cd repo-cache
+
+GDIR="$(basename $REMOTE).git"
+
+if [[ -d "$GDIR" && $(cd "$GDIR" && git config --get remote.origin.url) != "$REMOTE" ]]; then
+	rm -rf "$GDIR"
+fi
+
+if [[ ! -d "$GDIR" ]]; then
+	git clone -q --mirror "$REMOTE"
+fi
+
+cd "$GDIR"
+git remote update >/dev/null
+
+TIMESTAMP=$(git show -s --format=%ct $SHA1)
+
+TZ=UTC date -r $TIMESTAMP +"%Y%m%d%H%M%S"
