@@ -20,6 +20,15 @@ def conda_name_for(product):
 	else:
 		return lsst_prefix + transformed_name
 
+def get_our_channels(regex):
+	""" Return channels from .condarc that match regex """
+	from urlparse import urljoin
+	import conda.config
+
+	chans = [ urljoin(conda.config.channel_alias, u).rstrip('/ ') + '/' for u in conda.config.get_rc_urls() ]
+	chans = [ chan for chan in chans if re.match(regex, chan) ]
+	return chans
+
 # Deduce the directory we're running from
 root_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -107,15 +116,20 @@ override_gitrev = {
 }
 
 #
-# Conda channels where we should look for
+# Conda channels where LSST packages are. These will be checked for previous versions
+# of LSST packages and indexed in the repo-cache directory.
 #
-# IMPORTANT: these must end with a slash ('/') !!!!
+# The actual channels are obtained by running this regex against the channels in .condarc
+#
+our_channel_regex = '^http://eupsforge.net/conda/(.*)$'
+
+#
+# You should not need to manipulate this; change our_channel_regex instead
 #
 from conda_build.config import croot
 channels = [
 	'file://%s/' % croot,
-	'http://eupsforge.net/conda/dev/',
-]
+] + get_our_channels(our_channel_regex)
 
 # Construct the platform string (e.g., osx-64 or linux-64, etc.)
 # FIXME: there has to be a cleaner way to do this;
