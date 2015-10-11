@@ -40,4 +40,10 @@ git remote update >/dev/null
 
 TIMESTAMP=$(git show -s --format=%ct $SHA1)
 
-TZ=UTC date -r $TIMESTAMP +"%Y%m%d%H%M%S"
+if date --version >/dev/null 2>&1; then
+	# GNU date
+	TZ=UTC date -d @$TIMESTAMP +"%Y%m%d%H%M%S"
+else
+	# BSD date
+	TZ=UTC date -r $TIMESTAMP +"%Y%m%d%H%M%S"
+fi
