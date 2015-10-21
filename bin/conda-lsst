@@ -55,7 +55,7 @@ toolchain_deps = set()
 
 # Products that need to be prefixed with our prefix to avoid collisions
 # Products whose Conda name will _not_ be prefixed with out namespace prefix
-dont_prefix_products = set("legacy_configs libgcc".split()) | internal_products
+dont_prefix_products = set("legacy_configs libgcc astropy-helpers".split()) | internal_products
 lsst_prefix="lsst-"
 
 # A specific mapping between an EUPS product name and Conda product name. Takes
@@ -73,6 +73,9 @@ missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
 	conda_name_for('pymssql')                  : [('conda', 'cython'), ('pypi', 'setuptools-git')],
 	conda_name_for('palpy')                    : [('conda', 'cython'), ('conda', 'numpy')],
 	conda_name_for('pyfits')                   : [('pypi', 'stsci.distutils')],
+        'astropy-helpers'                          : [('pypi', 'sphinx'), ('pypi', 'pytest')],
+        conda_name_for('sncosmo')                  : [('pypi', 'astropy-helpers'), ('conda', 'astropy'),
+                                                      ('conda', 'cython'), ('conda', 'scipy')],
 	conda_name_for('sims_catalogs_generation') : [('conda', 'sqlalchemy')],
 	conda_name_for('sims_photUtils')           : [('conda', 'scipy'), ('conda', 'astropy')],
 	conda_name_for('sims_maf')                 : [('conda', 'ipython-notebook >=3.0')],
@@ -81,6 +84,19 @@ missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
 
 	'stsci.distutils'          : [('pypi', 'd2to1')],	# needed by pyfits
 }
+
+
+def added_by_hand(package):
+    """
+    Was a dependency on 'package' added by hand
+    """
+    for set in missing_deps.values():
+        for tt in set:
+            if tt[1] == package:
+                return True
+
+    return False
+
 
 # Parsers for versions that cannot be parsed otherwise
 special_version_parsers = { # map of eups_product_name -> [ parser_function1, parser_function2, ... ]
@@ -807,7 +823,7 @@ def gen_pypi_package(name, products, workdir):
 			continue
 
 		dest = os.path.join(workdir, package)
-		if not os.path.isdir(dest) and not conda_package_exists(package):
+		if (not os.path.isdir(dest) and not conda_package_exists(package)) or added_by_hand(package):
 			#print "MOVING: ", src, dest
 			os.rename(src, dest)
 
@@ -825,6 +841,15 @@ def gen_pypi_package(name, products, workdir):
 				buildnum, build_string, is_built = patch_buildinfo(package, version, dest, None)
 
 				products[package] = ProductInfo(package, version, build_string, buildnum, None, None, [], is_built, False)
+
+                        else:
+                            if deps:
+                                # if new dependencies were added, update the package's entry in products to make sure that those
+                                # dependencies are added to the meta.yaml file
+                                old_package = products[package]
+                                products[package] = ProductInfo(package, old_package.version, old_package.build_string, old_package.buildnum,
+                                                                old_package.product, old_package.eups_version, old_package.deps+deps,
+                                                                old_package.is_built, old_package.is_ours)
 
 			if workdir == output_dir:
 				report_progress(package, products[package].version)
