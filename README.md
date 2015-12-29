@@ -365,6 +365,13 @@ Any conda-specific patches needed to build the products should be placed in
 `<patches>/<product>/` directory, with a `.patch` extension. They should
 apply with `patch -p0`. See the patches currently there for examples.
 
+Hint: if you're generating the patches with `git diff` (as you probably
+should), use something like:
+```
+git diff --no-prefix master > mypatch.patch
+```
+to have the output at the `-p0` level.
+
 Note: there is currently no way to declare a patch should only be applied
 for certain commits (or commits coming before a certain commit).
 
