@@ -72,15 +72,14 @@ eups_to_conda_map = {
 missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
 	conda_name_for('pymssql')                  : [('conda', 'cython'), ('pypi', 'setuptools-git')],
 	conda_name_for('palpy')                    : [('conda', 'cython'), ('conda', 'numpy')],
-	conda_name_for('pyfits')                   : [('pypi', 'stsci.distutils')],
         conda_name_for('sncosmo')                  : [('pypi', 'astropy-helpers'), ('conda', 'astropy'), ('conda', 'cython'), ('conda', 'scipy')],
 	conda_name_for('sims_catalogs_generation') : [('conda', 'sqlalchemy')],
 	conda_name_for('sims_photUtils')           : [('conda', 'scipy'), ('conda', 'astropy')],
 	conda_name_for('sims_maf')                 : [('conda', 'ipython-notebook >=3.0')],
 	conda_name_for('sims_operations')          : [('conda', 'requests')],
 	conda_name_for('healpy')                   : [('conda', 'numpy')],
+	conda_name_for('stsci_distutils')          : [('eups', conda_name_for('python_d2to1'))],
 
-	'stsci.distutils'          : [('pypi', 'd2to1')],	# needed by pyfits
 	'astropy-helpers'          : [('conda', 'sphinx'), ('conda', 'pytest')],	# needed by sncosmo
 }
 
@@ -842,7 +841,8 @@ def add_missing_deps(conda_name, workdir):
 		#print conda_name, ':', kind, dep
 		{
 			'pypi': gen_pypi_package,
-			'conda': lambda dep, products, workdir: None
+			'conda': lambda dep, products, workdir: None,
+			'eups': lambda dep, products, workdir: None,
 		}[kind](dep, products, workdir)
 		deps.append(dep)
 
