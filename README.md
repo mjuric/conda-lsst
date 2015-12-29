@@ -13,8 +13,7 @@ support, please open an issue in this repository or contact the authors.
 
 This repository contains the utility `conda-lsst` that can generate
 [Conda](http://conda.pydata.org) recipes for LSST stack packages, build
-them, and upload to a remote web server (or a hosted service such as
-[anaconda.org](http://anaconda.org)) from where they will be installable
+them, and upload to a remote web server from where they will be installable
 using `conda install`.
 
 You *only* need this code if you wish to create and distribute your own build
@@ -48,6 +47,9 @@ To generate all packages and upload them to a remote service, run someting like 
 # Add conda-lsst to PATH. This will allow you to call it as `conda lsst`
 export PATH="$PWD/bin:$PATH"
 
+# Tell conda where the channel we'll be uploading to is
+conda config --add channels http://eupsforge.net/conda/dev
+
 # If on Linux, build patchelf v0.8 (but see the note below)
 conda build recipes/static/patchelf
 
@@ -56,15 +58,10 @@ conda build recipes/static/eups
 conda build recipes/static/legacy_configs
 
 # Build conda packages for LSST codes (the recipes will be stored in recipes/generated subdirectory)
-conda lsst build build:b1488 lsst_distrib lsst_sims
+conda lsst build build:b1828 lsst_distrib lsst_sims
 
-# Option #1: Upload to anaconda.org
-binstar login			# Run this once to log in with your anaconda.org credentials
-conda lsst upload --user lsst --channel dev	# replace user/channel with your credentials
-
-# Option #2: Upload to a remote web server
-conda lsst upload ssh lsst-dev.ncsa.illinois.edu public_html/conda/dev \
-      --conda /path/to/bin/conda/on/the/remote/server
+# Upload to the 'dev' channel
+conda lsst upload
 ```
 
 Note: If the packages for the recipes in the static directory (i.e., `eups`,
@@ -81,40 +78,14 @@ Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
 
-## Installing LSST software using Conda
+## Installing and Running Conda-delivered LSST softwre
 
-The LSST stack builds are kept on http://eupsforge.net/conda/dev channel; you'll
-need to tell `conda` about it:
-
-```bash
-conda config --add channels http://eupsforge.net/conda/dev
-```
-
-Then, to install (for example) `sims_maf`, run:
-
-```bash
-conda install lsst-sims-maf
-```
+See [this gist](https://gist.github.com/mjuric/1e097f2781bc503954c6) or the
+[video tutorial](https://youtu.be/bxfG8PoVCLU).
 
 The binaries are currently being built for 64 bit Linux (any variant newer
 than RHEL 6) and OS X (10.9 or later). See [here](#binary-compatibility)
 for more on binary compatibility.
-
-## Running Conda-delivered LSST software
-
-Though delivered through Conda, the LSST codes are still [managed by
-EUPS](#package-management-eups-and-conda) under the hood.  You'll therefore
-need to set up the EUPS environment and the individual packages being able
-to use them:
-
-```bash
-source eups-setups.sh	   # this activates EUPS (it's the equivalent of loadLSST.bash)
-setup sims_maf             # the usual EUPS command to setup a product
-
-#... run IPython notebooks, etc ...
-```
-
-(note: adjust the instructions above as appropriate for your shell).
 
 ## Technical Details
 
@@ -449,8 +420,8 @@ ensure that the built binaries work on OS X 10.9 (Mavericks) and later.
 Older systems are unsupported because they utilise a different
 implementation of the C++ standard library (`libstdc++` vs `libc++`).
 
-On Linux, we build on a RHEL6-compatible system, with `gcc` 4.4 and `glibc`
-2.12. Running on any newer distribution is expected to work.
+On Linux, we build on a RHEL5-compatible system. Running on any newer
+distribution is expected to work.
 
 #### Naming and Versioning
 
@@ -569,27 +540,30 @@ To allow the user to use the binaries, they need to be uploaded to a
 anaconda.org hosted service, or a HTTP-accessible directory on a remote
 server to which you can SCP the files.
 
-`conda lsst upload` gives you two options:
+`conda lsst upload` makes it easy to upload to the latter of the two. The
+defaults are set up so that just running `conda lsst upload` will upload to
+a subdirectory of `~mjuric/public_html/conda` at
+`lsst-dev.ncsa.illinois.edu`.
 
-  * `conda lsst upload binstar` will upload to anaconda.org
-  * `conda lsst upload ssh <server> <dir> [--conda]` will upload to a remote
-    server using `ssh` and `scp` (or `rsync`).
-
-For example, to upload packages to a repository in `~/public_html/conda/dev`
-directory on `lsst-dev.ncsa.illinois.edu`, I use the following command:
-```bash
-conda lsst upload ssh lsst-dev.ncsa.illinois.edu public_html/conda/dev \
-      --conda /ssd/mjuric/projects/lsst_packaging_conda/miniconda/bin/conda
+For example, assuming I have `http://eupsforge.net/conda/dev` in my
+`~/.condarc`, running:
 ```
-where the `--conda` option specifies the full path to the `conda` binary on
-the *remote* server. This directory is exposed to the web as
-http://eupsforge.net/conda/dev; for a user to install from this channel,
-they'd run:
+conda lsst upload
+```
+will upload the built packages to
+`lsst-dev.ncsa.illinois.edu:~mjuric/public_html/conda/dev`. Note that to do
+this, you need to have permissions to write to this directory.
+
+This directory is exposed to the web as http://eupsforge.net/conda/dev; 
+for a user to install from this channel, they'd run:
 ```bash
 conda config --add channels http://eupsforge.net/conda/dev
 ```
 after which the usual `conda install` command will find the packages
 available there.
+
+More options are available; see `conda lsst upload -h` for a more complete
+summary.
 
 Conda repositories follow a [simple package repository
 format](http://conda.pydata.org/docs/spec.html#repository-structure-and-index).

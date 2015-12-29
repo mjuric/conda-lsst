@@ -29,6 +29,15 @@ def get_our_channels(regex):
 	chans = [ chan for chan in chans if re.match(regex, chan) ]
 	return chans
 
+def get_our_channel_names(regex, channels):
+	def aux():
+		for chan in channels:
+			match = re.match(our_channel_regex, chan)
+			if not match:
+				continue
+			yield match.group(1)
+	return list(aux())
+
 # Deduce the directory we're running from
 root_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -125,15 +134,27 @@ override_gitrev = {
 #
 # The actual channels are obtained by running this regex against the channels in .condarc
 #
-our_channel_regex = '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.*)$'
+our_channel_regex = '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.+?)/?$'
+
+#
+# The upload destination (server, dir on server, conda on server) for 'conda-lsst upload'
+# This should map to the directory accessible with the regex above
+#
+channel_server       = 'lsst-dev.ncsa.illinois.edu'
+channel_dir_base     = '/home/mjuric/public_html/conda'
+channel_server_conda = '/ssd/mjuric/projects/conda-lsst/miniconda/bin/conda'
 
 #
 # You should not need to manipulate this; change our_channel_regex instead
 #
 from conda_build.config import croot
+# channel URLs
 channels = [
 	'file://%s/' % croot,
 ] + get_our_channels(our_channel_regex)
+
+# channel names
+channel_names = get_our_channel_names(our_channel_regex, channels)
 
 # Construct the platform string (e.g., osx-64 or linux-64, etc.)
 # FIXME: there has to be a cleaner way to do this;
@@ -919,22 +940,6 @@ def test_release_db():
 	print "next buildnum:", db.get_next_buildnum(name, version)
 	print "hash lookup: ", db[name, version, hash]
 
-def main_upload_binstar(args):
-	#
-	# Upload using binstar
-	#
-	files = db.files_to_upload()
-	if not files:
-		print "nothing to upload, all local packages already exist on remote servers."
-		return
-
-	for fn in files:
-		cmd = "binstar upload -u %(user)s -c %(channel)s %(fn)s" % { 'user': args.user, 'channel': args.channel, 'fn': fn }
-		if args.dry_run:
-			print cmd
-		else:
-			subprocess.check_call(cmd, shell=True)
-
 def main_upload_ssh(args):
 	#
 	# Upload using SSH
@@ -944,12 +949,46 @@ def main_upload_ssh(args):
 		print "nothing to upload, all local packages already exist on remote servers."
 		return
 
-	server = args.server 		# 'mjuric@lsst-dev.ncsa.illinois.edu'
-	dir    = args.channel_dir	# 'public_html/conda/dev'
-	conda  = args.conda		# '/ssd/mjuric/projects/lsst_packaging_conda/miniconda/bin/conda'
+	server  = args.server 	# upstream server (SSH notation, may include username)
+	channel = args.channel	# the channel to upload to on the remote server
+	conda   = args.conda	# the path to the conda binary on the upstream server
 
-	# append platform string
-	dir = os.path.join(dir, platform)
+	if channel is None: # if the channel wasn't explicitly given, use the first remote channel
+		try:
+			channel = channel_names[0]
+		except IndexError:
+			print >>sys.stderr, "error: there are no channels in your ~/.condarc that match the regular expression:"
+			print >>sys.stderr, ""
+			print >>sys.stderr, "    " + our_channel_regex
+			print >>sys.stderr, ""
+			print >>sys.stderr, "conda will upload to the first channel in ~/.condarc matching the above regex."
+			print >>sys.stderr, "Please add at least one using:"
+			print >>sys.stderr, ""
+			print >>sys.stderr, "    conda config --add channels <channel_url>"
+			print >>sys.stderr, ""
+			print >>sys.stderr, "and try again."
+			exit(-1)
+	elif channel not in channel_names: # if the channel was explicitly given, check that condarc knows about it
+		print >>sys.stderr, "error: you've requested to upload to channel '%s', but that channel doesn't" % channel
+		print >>sys.stderr, "appear to be listed in your ~/.condarc file."
+		print >>sys.stderr, "aborting out of abundance of caution."
+		exit(-1)
+
+	# construct the full remote path
+	dir = '/'.join([channel_dir_base, channel, platform])
+
+	# summarize what we're about to do
+	print "will upload to:"
+	print "    server:     %s" % server
+	print "    directory:  %s" % dir
+	print "using path to conda:"
+	print "    %s" % conda
+	if not args.yes:
+		print "ok to proceed [y/n]? ",
+		yn = raw_input().lower()
+		if yn not in ['y', 'yes']:
+			print "upload cancelled."
+			exit(-1)
 
 	dest = '%s:%s' % (server, dir)
 	try:
@@ -1074,21 +1113,11 @@ if __name__ == "__main__":
 	parser.set_defaults(func=main_build)
 
 	# upload subcommand
-	u_parser = subparsers.add_parser('upload')
-	u_subparsers = u_parser.add_subparsers()
-
-	# 'upload binstar' subcommand
-	parser = u_subparsers.add_parser('binstar')
-	parser.add_argument("--dry-run", help="don't upload, just print out the binstar commands that would have been used.", action="store_true")
-	parser.add_argument("--user", help="anaconda.org username (or organization name)", type=str, default='lsst')
-	parser.add_argument("--channel", help="channel name", type=str, default='dev')
-	parser.set_defaults(func=main_upload_binstar)
-
-	# 'upload ssh' subcommand
-	parser = u_subparsers.add_parser('ssh')
-	parser.add_argument("server", help="server connection string (e.g., username@my.server.edu).", type=str)
-	parser.add_argument("channel_dir", help="the channel directory on the server.", type=str)
-	parser.add_argument("--conda", help="path to 'conda' binary on the server.", type=str, default='conda')
+	parser = subparsers.add_parser('upload')
+	parser.add_argument("channel", nargs='?', help="the channel to upload to.", type=str, default=None)
+	parser.add_argument("server", nargs='?', help="server connection string (e.g., username@my.server.edu).", type=str, default=channel_server)
+	parser.add_argument("--yes",   help="don't ask for confirmation before starting the upload.", action="store_true")
+	parser.add_argument("--conda", help="path to 'conda' binary on the server.", type=str, default=channel_server_conda)
 	parser.add_argument("--rsync", help="use rsync to copy the files to the remote server (the default is to use scp).", action="store_true")
 	parser.set_defaults(func=main_upload_ssh)
 
