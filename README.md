@@ -47,10 +47,10 @@ To generate all packages and upload them to a remote service, run someting like 
 # Add conda-lsst to PATH. This will allow you to call it as `conda lsst`
 export PATH="$PWD/bin:$PATH"
 
-# If on Linux, build patchelf v0.8
+# If on Linux, build patchelf v0.8 (but see the note below)
 conda build recipes/static/patchelf
 
-# Build the prerequisites
+# Build the prerequisites (but see the note below)
 conda build recipes/static/eups
 conda build recipes/static/legacy_configs
 
@@ -65,6 +65,12 @@ conda lsst upload --user lsst --channel dev	# replace user/channel with your cre
 conda lsst upload ssh lsst-dev.ncsa.illinois.edu public_html/conda/dev \
       --conda /path/to/bin/conda/on/the/remote/server
 ```
+
+Note: If the packages for the recipes in the static directory (i.e., `eups`,
+`legacy_configs` already exist on the upstream channel, there's no need to
+build them again.  You generally need to build them only if you're
+bootstrapping a new conda channel from scratch, or have updated their
+versions.
 
 `conda-lsst` is [smart about not rebuilding](#tracking-rebuilds) packages
 that have already been built.
