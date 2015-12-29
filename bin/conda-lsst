@@ -122,7 +122,7 @@ override_gitrev = {
 #
 # The actual channels are obtained by running this regex against the channels in .condarc
 #
-our_channel_regex = '^http://eupsforge.net/conda/(.*)$'
+our_channel_regex = '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.*)$'
 
 #
 # You should not need to manipulate this; change our_channel_regex instead
