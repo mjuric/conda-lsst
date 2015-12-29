@@ -1,0 +1,8 @@
+diff --git ups/stsci_distutils.table ups/stsci_distutils.table
+index 5b7726b..bdb427d 100644
+--- ups/stsci_distutils.table
++++ ups/stsci_distutils.table
+@@ -1 +1,3 @@
++setupRequired(python_d2to1)
++
+ envPrepend(PYTHONPATH, ${PRODUCT_DIR}/lib/python)
