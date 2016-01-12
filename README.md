@@ -30,10 +30,11 @@ This code is beta quality; it is expected to work on OS X and Linux.
 
 ## Prerequisites
 
-You need at least [Miniconda](conda.pydata.org/miniconda.html) with `conda-build`, `jinja2`, 
-`binstar`, `requests`, `sqlalchemy` packages installed, and the `requests_file` python
-module (install with `pip install requests_file`). For your convenience, there's a
-script, [./bin/bootstrap.sh](bin/bootstrap.sh), that when run:
+You need at least [Miniconda](conda.pydata.org/miniconda.html) with
+`conda-build`, `jinja2`, `anaconda-client` (provides `binstar`), `requests`,
+`sqlalchemy` packages installed, and the `requests_file` python module (install
+with `pip install requests_file`). For your convenience, there's a script,
+[./bin/bootstrap.sh](bin/bootstrap.sh), that when run:
 ```bash
 bash ./bin/bootstrap.sh
 ```
