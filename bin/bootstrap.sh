@@ -36,7 +36,7 @@ if [[ ! -f "$PWD/miniconda/.installed" ]]; then
 	# Install prerequisites
 	#
 	export PATH="$PWD/miniconda/bin:$PATH"
-	conda install conda-build jinja2 binstar requests sqlalchemy pip --yes
+	conda install conda-build jinja2 anaconda-client requests sqlalchemy pip --yes
 
 	pip install requests_file
 
