@@ -79,6 +79,8 @@ missing_deps = { # map of conda_name -> [ (pkgtype, conda_name), ... ]
 	conda_name_for('sims_operations')          : [('conda', 'requests')],
 	conda_name_for('healpy')                   : [('conda', 'numpy')],
 	conda_name_for('stsci_distutils')          : [('eups', conda_name_for('python_d2to1'))],
+	conda_name_for('daf_persistence')          : [('conda', 'pyyaml')],
+	conda_name_for('daf_butlerutils')          : [('conda', 'astropy')],
 
 	'astropy-helpers'          : [('conda', 'sphinx'), ('conda', 'pytest')],	# needed by sncosmo
 }
