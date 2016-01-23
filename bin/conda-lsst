@@ -41,7 +41,7 @@ internal_products = set("python swig libevent flask twisted scons numpy protobuf
 
 # Numpy version to require (otherwise conda gets confused and sometimes tries to build some
 # packages against (e.g.) 1.9 and others against 1.10, leading to build failures)
-numpy_version = "numpy ==1.9"
+##numpy_version = "numpy ==1.9"
 
 # Products to skip alltogether (i.e., don't build, don't make a dependency)
 skip_products = set("anaconda afwdata".split())
@@ -657,7 +657,7 @@ def gen_conda_package(product, sha, eups_version, eups_deps, eups_tags):
 	deps = sorted(deps)
 
 	# Add specific numpy version
-	deps = [ dep if dep != 'numpy' else numpy_version for dep in deps ]
+#	deps = [ dep if dep != 'numpy' else numpy_version for dep in deps ]
 
 	#
 	# Create the Conda packaging spec files
