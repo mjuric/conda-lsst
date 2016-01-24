@@ -23,11 +23,13 @@ requirements:
   build:
     - patchelf >=0.8	# [not osx]
     - python
-    - eups%(build_req)s
+    - eups
+    - libgcc%(run_req)s
 
   run:
     - python
-    - eups%(run_req)s
+    - eups
+    - libgcc%(run_req)s
 
 about:
   home: "%(giturl)s"

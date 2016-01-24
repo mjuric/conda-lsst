@@ -1,0 +1,128 @@
+#
+# Where will I find the source code?
+# A mapping of upstream URL pattern to glob of product name.
+# These will be examined in order, and the first match will be used
+#
+git-upstreams:
+  'https://github.com/EUPSForge/%(product)s':
+    - gcc
+  'https://github.com/LSST/%(product)s':
+    - "*"
+
+#
+# Any SHA1 overrides to be applied to the build manifest
+# This is a list of mapping of 'product_name' -> 'SHA1-or-ref'
+#
+override_gitrev: {}
+
+#
+# Directory with patches
+#
+patchdir: patches
+
+#
+# A regexp matching the channels to which we'll upload. This is used to know which channels
+# to scan for already-built products.
+#
+our_channel_regex: '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.+?)/?$'
+
+#
+# The upload destination (server, dir on server, conda on server) for 'conda-lsst upload'
+# This should map to the directory accessible with the regex above
+#
+upload:
+  server:    'lsst-dev.ncsa.illinois.edu'
+  dir_base:  '/home/mjuric/public_html/conda'
+  conda:     '/ssd/mjuric/projects/conda-lsst/miniconda/bin/conda'
+
+#
+# A list of EUPS products that are to be replaced by internal (i.e., available
+# from Anaconda default repositories) products.
+#
+internal_products:
+  - python
+  - swig
+  - libevent
+  - flask
+  - twisted
+  - scons
+  - numpy
+  - protobuf
+  - matplotlib
+
+#
+# EUPS products we should ignore alltogether
+#
+skip_products:
+  - anaconda
+  - afwdata
+
+#
+# Prefix to add to all packages we'll buld
+#
+lsst_prefix: "lsst-"
+
+#
+# Products whose names shouldn't be prefixed
+#
+dont_prefix_products:
+  - legacy_configs
+  - libgcc
+
+#
+# Explicit overrides for mapping of EUPS->conda product names
+#
+eups_to_conda_map:
+  legacy_configs: legacy_configs
+  lsst:           "%(lsst_prefix)seups-environment"
+  lsst_sims:      "%(lsst_prefix)ssims"
+  lsst_distrib:   "%(lsst_prefix)sdistrib"
+  lsst_apps:      "%(lsst_prefix)sapps"
+
+#
+# Inject additional dependencies.
+#
+# map of conda_name -> "conda/<conda_name>, recipe/<conda_name>, eups/<eups_name>..."
+#
+dependencies:
+  palpy:
+    run:   [ conda/cython, conda/numpy ]
+    build: [ conda/cython, conda/numpy ]
+  sncosmo:
+    run:   [ recipe/astropy-helpers, conda/astropy, conda/cython, conda/scipy ]
+    build: [ recipe/astropy-helpers, conda/astropy, conda/cython, conda/scipy ]
+  sims_catalogs_generation:
+    run:   [ conda/sqlalchemy ]
+    build: [ conda/sqlalchemy ]
+  sims_photUtils:
+    run:   [ conda/scipy, conda/astropy ]
+    build: [ conda/scipy, conda/astropy ]
+  sims_maf:
+    run:   [ "conda/ipython-notebook >=3.0" ]
+    build: [ "conda/ipython-notebook >=3.0" ]
+  sims_operations:
+    run:   [ conda/requests ]
+    build: [ conda/requests ]
+  healpy:
+    run:   [ conda/numpy ]
+    build: [ conda/numpy ]
+  stsci_distutils:
+    run:   [ eups/python_d2to1 ]
+    build: [ eups/python_d2to1 ]
+  daf_persistence:
+    run:   [ conda/pyyaml ]
+    build: [ conda/pyyaml ]
+  daf_butlerutils:
+    run:   [ conda/astropy ]
+    build: [ conda/astropy ]
+
+#
+# Directory with additional recipes, to satisfy any injected dependencies.
+# These are most often conda packages for packages out of PyPI, typically
+# generated using conda-skeleton.
+#
+additional_recipes_dir: "recipes/external"
+
+# Output directory where the package specs will be generated (and the rebuild script)
+# DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
+output_dir: "recipes/generated"
