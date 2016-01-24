@@ -375,77 +375,6 @@ def copy_additional_recipe(config, name, products, workdir):
 
 	_copy_recipe(name, workdir)
 
-##################################
-# PyPi dependencies support code
-#
-
-def conda_package_exists(conda_name):
-	ret = subprocess.check_output('conda search -c defaults --override-channels -f --json %s' % (conda_name), shell=True).strip()
-	return ret != "{}"
-
-def gen_pypi_package(config, name, products, workdir):
-	tmpdir = os.path.join(workdir, '_pypi')
-	os.makedirs(tmpdir)
-
-	# generate the packages
-	retcode = subprocess.call('conda skeleton pypi %(name)s --recursive --output-dir %(pypi)s > %(pypi)s/output.log' % { 'name': name, 'pypi' : tmpdir }, shell=True)
-	if retcode:
-		raise Exception("conda skeleton returned %d" % retcode)
-
-	# conda skeleton doesn't properly detect some pypi dependencies
-	deps = add_missing_deps(config, name, tmpdir)
-	if deps:
-		# patch the generated meta.yaml file to add the missing dependenceis
-		build_req = create_yaml_list(deps)
-		run_req   = create_yaml_list(deps)
-
-		metafn = os.path.join(tmpdir, name, 'meta.yaml')
-		with open(metafn) as fp:
-			meta = fp.read()
-
-		import re
-		meta = re.sub(r'(^requirements:\n  build:)',  r'\1' + build_req, meta, count=1, flags=re.MULTILINE)
-		meta = re.sub(r'(^requirements:\n.*^  run:)', r'\1' +   run_req, meta, count=1, flags=re.MULTILINE | re.DOTALL)
-		
-		with open(metafn, "w") as fp:
-			fp.write(meta)
-
-	# see what was generated
-	#with open(os.path.join(tmpdir, 'output.log')) as fp:
-	#	packages = [ line.split()[-1] for line in fp if line.startswith("Writing recipe for ") ]
-
-	# move into output directory any generated packages that aren't already there
-	for package in os.listdir(tmpdir):
-		src  = os.path.join(tmpdir, package)
-		if not os.path.isdir(src):
-			continue
-
-		dest = os.path.join(workdir, package)
-		if not os.path.isdir(dest) and not conda_package_exists(package):
-			#print "MOVING: ", src, dest
-			os.rename(src, dest)
-
-			if package not in products:
-				# Load name+version from meta.yaml
-				import yaml
-				with open(os.path.join(dest, 'meta.yaml')) as fp:	# FIXME: meta.yaml configs are not true .yaml files; this may fail in the future
-					meta = yaml.load(fp)
-				assert meta['package']['name'] == package, "meta['package']['name'] != package"
-
-				# Find our build number. If this package already exists in the release DB,
-				# re-use the build number and mark it as '.done' so it doesn't get rebuilt.
-				# Otherwise, increment the max build number by one and use that.
-				version = meta['package']['version']
-				buildnum, build_string, is_built = patch_buildinfo(package, version, dest, None)
-
-				products[package] = ProductInfo(package, version, build_string, buildnum, None, None, [], is_built, False)
-
-			if workdir == config.output_dir:
-				report_progress(package, products[package].version)
-
-	# delete what remains
-	shutil.rmtree(tmpdir)
-
 def add_missing_deps(config, conda_name, workdir):
 	# inject missing dependencies, creating new conda packages if needed
 	# returns Conda package names
@@ -453,7 +382,6 @@ def add_missing_deps(config, conda_name, workdir):
 	for kind, dep in config.missing_deps.get(conda_name, []):
 		print '----', conda_name, ':', kind, dep
 		{
-			'pypi': gen_pypi_package,
 			'recipe': copy_additional_recipe,
 			'conda': lambda config, dep, products, workdir: None,
 			'eups': lambda config, dep, products, workdir: None,
