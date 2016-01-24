@@ -1,0 +1,31 @@
+#
+# To build a Conda package, run conda build as:
+#
+#    conda build .
+#
+# To change a release to build, change the git_tag entry.
+#
+
+package:
+  name: eups
+  version: 1.5.9
+
+build:
+  number: 7
+  string: 7
+
+source:
+  git_tag: 1.5.9
+  git_url: https://github.com/RobertLuptonTheGood/eups
+
+requirements:
+  build:
+    - python
+
+  run:
+    - python
+
+about:
+  home: http://github.com/RobertLuptonTheGood/eups
+  license: GPLv2
+  summary: A version manager tracking product dependencies

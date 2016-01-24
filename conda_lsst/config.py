@@ -6,6 +6,11 @@ import fnmatch
 
 import yaml
 
+def expand_path(root, fragment):
+	if not os.path.isabs(fragment):
+		return os.path.join(root, fragment)
+	return fragment
+
 class Config(object):
 	# Output directory where the package specs will be generated (as well as the rebuild script)
 	# DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
@@ -20,29 +25,30 @@ class Config(object):
 	#
 	additional_recipes_dir = None
 
-	# Products that already exist in Anaconda; we'll skip building those (but will depend on them)
 	#
-	# list, loaded from config.internal_products
-	internal_products = None
+	# Directory where the recipe templates are.
+	#
+	template_dir = None
 
-	# Numpy version to require (otherwise conda gets confused and sometimes tries to build some
-	# packages against (e.g.) 1.9 and others against 1.10, leading to build failures)
+	# Products that already exist in Anaconda; we'll skip building those (but will depend on them)
+	# This is a dictionary, with value optionally containing another dictionary with
+	# conda package specification for build and run clauses in meta.yaml. If the value is None
+	# conda_name_for() will be used to deduce the conda name.
 	#
-	# Hardcoded hacks (FIXME)
-	##numpy_version = "numpy ==1.9"
-	swig_version = "swig ==3.0.2"
+	# dict( eupsName -> { 'build': 'package spec', 'run': 'package spec' }
+	internal_products = None
 
 	# Products to skip alltogether (i.e., don't build, don't make a dependency)
 	#
 	# list, mapped from config.skip_products
 	skip_products = None
 
-	# Products that need to be prefixed with our prefix to avoid collisions
-	# Products whose Conda name will _not_ be prefixed with out namespace prefix
+	# Products to skip building on certain platforms. The recipes will still be
+	# generated.
 	#
-	# set, union of config.dont_prefix_products and internal_products
-	dont_prefix_products = None
-	
+	# dict( conda_name ->  [ list of platforms ]), mapped from config.skip-build
+	skip_build = None
+
 	# Prefix to prepend to every conda product name (typically, 'lsst-')
 	#
 	# string
@@ -99,32 +105,28 @@ class Config(object):
 	channel_names = None
 
 	platform = None
+	uname = None
 
-	def conda_name_for(self, product, prefix=None, namemap=None, dontprefix=None):
+	def conda_name_for(self, product):
 		#
 		# Return a conda product name, given an EUPS product name
 		#
 
-		if prefix is None:
-			prefix = self.lsst_prefix
-		if namemap is None:
-			namemap = self.eups_to_conda_map
-		if dontprefix is None:
-			dontprefix = self.dont_prefix_products
-
 		# return the conda package name for a product
 		try:
-			return namemap[product]
+			return self.eups_to_conda_map[product]
 		except KeyError:
 			pass
 
 		transformed_name = product.replace('_', '-')
 		transformed_name = transformed_name.lower()
 
-		if product in dontprefix:
+		# don't prefix internal (aka system) products that don't
+		# have explicit mappings to their conda names
+		if product in self.internal_products:
 			return transformed_name
-		else:
-			return prefix + transformed_name
+
+		return self.lsst_prefix + transformed_name
 
 	def get_giturl(self, productName):
 		# Find first remote in whose list of product globs there's
@@ -133,62 +135,105 @@ class Config(object):
 			if next((glob for glob in productNameGlobs if fnmatch.fnmatch(productName, glob)), None):
 				return remote % { 'product': productName }
 
-	def __init__(self, fn):
+	def get_missing_deps(self, productName, typ):
+		# Find all keys in self.missing_deps that match productName
+		# Then return the union of all dependencies of the matching type
+		# (note: returns a generator)
+		matching = [ deps.get(typ, []) for glob, deps in self.missing_deps.items() if fnmatch.fnmatch(productName, glob) ]
+
+		from itertools import chain
+		return chain.from_iterable(matching)
+
+	def __init__(self, root_dir, fn):
 		# Load the configuration file (YAML), do any necessary parsing
 		# and variable substitutions, and return the result
-		with open(fn) as fp:
+		with open(expand_path(root_dir, fn)) as fp:
 			config = yaml.load(fp)
 
 		# Expand eups->conda map
 		for eups_name, conda_name in config['eups_to_conda_map'].items():
 			config['eups_to_conda_map'][eups_name] = conda_name % config
 
-		# Convert conda/foo -> (conda, foo) in dependencies
+		# Naming-related
+		self.eups_to_conda_map = config['eups_to_conda_map']
+		self.lsst_prefix = config['lsst_prefix']
+
+		pv = config['pin_versions']
+
+		# A mapping from LSST eups packages that will be replaced by conda equivalents
+		# Apply pinned versions (if any) to entries that don't have a version specified
+		self.internal_products = config['internal_products']
+		for name, meta in self.internal_products.items():
+			if name not in pv:
+				continue
+
+			if meta is None:
+				meta = {}
+			for typ in ('run', 'build'):
+				pkgSpec = meta.get(typ, name)
+				if len(pkgSpec.strip().split()) == 1: # name only ?
+					meta[typ] = "%s %s" % (pkgSpec, pv[name][typ])
+
+			self.internal_products[name] = meta
+
+		# Parse system-provided dependencies specifications
 		_deps = {}
+		pv = config['pin_versions']
 		for productName, deps in config['dependencies'].items():
+			#
+			# By default, the key is an EUPS name, but allow it to be a
+			# conda name as well
+			#
 			if '/' in productName:
 				name_type, productName = productName.split('/')
 			else:
 				name_type = 'eups'
 
 			if name_type == 'eups':
-				productName = self.conda_name_for(productName, config['lsst_prefix'], config['eups_to_conda_map'], config['dont_prefix_products'])
+				productName = self.conda_name_for(productName)
 			elif name_type == 'conda':
 				pass
 			else:
 				raise Exception("Unknown name type, %s, when specifying the dependency for %s" % (name_type, productName))
 
+			#
+			# By default, the values are conda names, but allow them to be
+			# EUPS names as well.
+			#
 			_deps[productName] = {}
 			for type_ in ['run', 'build']:
 				if type_ in deps:
 					newDeps = []
-					for (pkgType, pkgName) in (s.split('/') for s in deps[type_]):
+					for depSpec in deps[type_]:
+						# Parse '[type/]name [verspec] [#selector]'
+						res = re.match(r'^(?:(\w+)/)?((\S+)(?:\s+([^ ]+)(?:\s+(#.*))?)?)', depSpec)
+						pkgType, pkgSpec, pkgName, verSpec, selector = res.groups()
+						#print "XXXX", (pkgType, pkgSpec, pkgName, verSpec, selector)
 						if pkgType == 'eups':
 							assert ' ' not in pkgName
-							pkgName = self.conda_name_for(pkgName, config['lsst_prefix'], config['eups_to_conda_map'], config['dont_prefix_products'])
-						newDeps.append((pkgType, pkgName))
+							pkgName = self.conda_name_for(pkgName)
+
+						# Apply version pinning, if any
+						if verSpec is None and selector is None and pkgName in pv:
+							verSpec = pv[pkgName].get(type_, None)
+							pkgSpec = "%s %s" % (pkgName, verSpec)
+							#print "HERE: ", productName, type_, (pkgType, pkgName, verSpec, selector, pkgSpec)
+
+						newDeps.append((pkgType, pkgName, verSpec, selector, pkgSpec))
 					_deps[productName][type_] = newDeps
 		config['dependencies'] = _deps
 
 		# Set member variables
-		self.output_dir = os.path.abspath(config['output_dir'])
-		self.additional_recipes_dir = os.path.abspath(config['additional_recipes_dir'])
-		self.internal_products = set(config['internal_products'])
+		self.output_dir = expand_path(root_dir, config['output_dir'])
+		self.additional_recipes_dir = expand_path(root_dir, config['additional_recipes_dir'])
+		self.template_dir = expand_path(root_dir, config['template_dir'])
 		self.skip_products = set(config['skip_products'])
-
-		# Naming-related
-		self.eups_to_conda_map = config['eups_to_conda_map']
-		self.lsst_prefix = config['lsst_prefix']
-		self.dont_prefix_products = set(config['dont_prefix_products']) | self.internal_products
-
-		# Version hacks
-		##self.numpy_version = "numpy ==1.9"
-		self.swig_version = "swig ==3.0.2"
+		self.skip_build = config.get('skip-build', {})
 
 		# Dependencies
-		self.missing_deps = { prodName: deps['build'] for prodName, deps in config['dependencies'].iteritems() }
+		self.missing_deps = config['dependencies']
 
-		self.global_eups_tags = [ 'current' ]
+		self.global_eups_tags = [ 'current', 'conda' ]
 
 		# obtaining the source
 		self.git_upstreams = config['git-upstreams']
@@ -213,6 +258,7 @@ class Config(object):
 
 		# Conda ID for the platform
 		self.platform = "%s-%s" % ('osx' if sys.platform == 'darwin' else 'linux', platform.architecture()[0][:2])
+		self.uname = sys.platform.title()
 
 ######################################################
 

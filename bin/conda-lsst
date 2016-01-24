@@ -1,434 +1,43 @@
 #!/usr/bin/env python
 
-import os, os.path, shutil, subprocess, re, sys, glob, tempfile, contextlib, fnmatch
-from collections import OrderedDict, namedtuple
-import requests
+import os, os.path, subprocess, sys
 
-# Deduce the directory we're running from
 root_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-
-ProductInfo = namedtuple('ProductInfo', ['conda_name', 'version', 'build_string', 'buildnum', 'product', 'eups_version', 'deps', 'is_built', 'is_ours'])
-
-# A mapping from conda_name -> ProductInfo instance
-products = OrderedDict()
-
-# Cribbed from http://stackoverflow.com/questions/4934806/how-can-i-find-scripts-directory-with-python
-def get_script_path():
-	return os.path.dirname(os.path.realpath(__file__))
-
-extract_version_path = os.path.join(get_script_path(), '..', 'scripts', 'extract-version')
-
-from db import *
-
-def report_progress(product, verstr = None):
-	if verstr is not None:
-		print "  %s-%s...  " % (product, verstr)
-	else:
-		print "  %s...  " % product
-	sys.stdout.flush()
-
-def eups_to_conda_version(product, eups_version, giturl):
-	# Convert EUPS version string to Conda-compatible pieces
-	#
-	# Conda version has three parts:
-	#	version number: a version number that should be something Conda can parse and order
-	#	build string: not used in version comparison, can be anything
-	#	build number: if two versions are equal, build number is used to break the tie
-	#
-	#  Furthermore, it parses the version itself as described in the VersionOrder object docstring at:
-	#      https://github.com/conda/conda/blob/master/conda/resolve.py
-	#  We do our best here to fit into that format.
-
-	# hardcoded for now. This should be incremented on a case-by-case basis to
-	# push fixes that are Conda-build related
-	buildnum = 0
-
-	# Split into version + eups build number ("plusver")
-	if '+' in eups_version:
-		raw_version, plusver = eups_version.split('+')
-		plusver = int(plusver)
-	else:
-		raw_version, plusver = eups_version, 0
-
-	# Parse EUPS version:
-	# Possibilities to detect:
-	#	<vername>-<tagdist>-g<sha1>		-> (<vername>.<tagdist>, <plusver>_<sha1>, <buildnum>)
-	#          <vername> can be <version>.lsst<N>	->   <vername>.<N>
-	#	<branch>-g<sha1>			-> (<branch>_g<sha1>, <plusver>_<sha1>, <buildnum>)
-	#	<something_completely_different>	-> (<something_completely_different>, '', <buildnum>)
-	#
-
-	def parse_full_version(version, giturl):	
-		match = re.match('^([^-]+)-([0-9]+)-g([0-9a-z]+)$', version)
-		if not match: return None, None
-
-		vername, tagdist, sha1  = match.groups()
-
-		# handle 1.2.3.lsst5 --> 1.2.3.5
-		fixed_ver, _ = parse_lsst_patchlevel(vername, giturl)
-		if fixed_ver is not None:
-			vername = fixed_ver
-
-		return "%s.%s" % (vername, tagdist), sha1
-
-	def parse_lsst_patchlevel(version, giturl):
-		# handle 1.2.3.lsst5 --> 1.2.3.5
-		match = re.match(r'^(.*?).?lsst([0-9]+)$', version)
-		if not match: return None, None
-
-		true_ver, lsst_patch = match.groups()
-		return "%s.%s" % (true_ver, lsst_patch), ''
-
-	def parse_branch_sha1(version, giturl):
-		match = re.match('^([^-]+)-g([0-9a-z]+)$', version)
-		if not match: return None, None
-
-		branch, sha1 = match.groups()
-		
-		timestamp = subprocess.check_output([extract_version_path, giturl, sha1]).strip()
-		version = "%s.%s" % (branch, timestamp)
-
-		return version, sha1
-
-	def parse_default(version, giturl):
-		return version, ''
-
-	parsers = [ parse_full_version, parse_lsst_patchlevel, parse_branch_sha1, parse_default ]
-	for parser in parsers:
-		version, build_string_prefix = parser(raw_version, giturl)
-		if version is not None:
-			break
-
-	# Heuristic for converting the (unnaturally) large LSST version numbers
-	# to something more apropriate (i.e. 10.* -> 0.10.*, etc.).
-	if re.match(r'^1[0-9]\.[0-9]+.*$', version):
-		version = "0." + version
-
-	# add plusver to version as .postNNN
-	if plusver:
-		version += ".post%d" % int(plusver)
-
-	# remove any remaining '-'
-	if '-' in version:
-		version = version.replace('-', '_')
-
-	# Make sure our version is conda-compatible
-	try:
-		from conda.resolve import normalized_version
-		normalized_version(version)
-
-		compliant = True
-	except:
-		compliant = False
-
-	return version, build_string_prefix, buildnum, compliant
-
-def conda_version_spec(conda_name):
-	pi = products[conda_name]
-	if pi.version is not None:
-		verexpr = ("==" if pi.is_ours else ">=") + pi.version
-		return "%s %s" % (conda_name, verexpr)
-	else:
-		return conda_name
-
-def create_yaml_list(elems, SEP='\n    - '):
-	return (SEP + SEP.join(elems)) if elems else ''
-
-def fill_out_template(dest_file, template_file, **variables):
-	# fill out a template file
-	tf = os.path.join(root_dir, 'templates', template_file)
-	with open(tf) as fp:
-		template = fp.read()
-
-	text = template % variables
-	
-	# strip template comments
-	text = re.sub(r'^#--.*\n', r'', text, flags=re.MULTILINE)
-
-	with open(dest_file, 'w') as fp:
-		fp.write(text)
-
-def prepare_patches(product, dir):
-	patchdir = os.path.join(root_dir, 'patches', product)
-	if not os.path.isdir(patchdir):
-		return ''
-
-	patch_files = glob.glob(os.path.join(patchdir, '*.patch'))
-
-	for patchfn in patch_files:
-		shutil.copy2(patchfn, dir)
-	
-	# convert to meta.yaml string
-	patchlist = [ os.path.basename(p) for p in patch_files ]
-	patches = '  patches:' + create_yaml_list(patchlist)
-	return patches
-
-def gen_conda_package(config, product, sha, eups_version, giturl, eups_deps, eups_tags):
-	# What do we call this product in conda?
-	conda_name = config.conda_name_for(product)
-
-	# convert to conda version
-	version, build_string_prefix, buildnum, compliant = eups_to_conda_version(product, eups_version, giturl)
-
-	# warn if the version is not compliant
-	problem = "" if compliant else " [WARNING: version format incompatible with conda]"
-
-	# write out a progress message
-	#report_progress(conda_name, "%s-%s" % (version, build_string))
-	report_progress(conda_name, "%s%s" % (version, problem))
-
-	#
-	# process dependencies
-	#
-	eups_deps = set(eups_deps)
-	if eups_deps & config.internal_products:	# if we have any of the internal dependencies, make sure we depend on legacy_config where their .cfg and .table files are
-		eups_deps.add('legacy_configs')
-	eups_deps -= config.skip_products					# skip unwanted dependencies
-	deps =  [ config.conda_name_for(prod) for prod in eups_deps ]		# transform to Anaconda product names
-	deps += add_missing_deps(config, conda_name, config.output_dir)		# manually add any missing dependencies
-
-	# flatten dependencies to work around a Conda bug:
-	# https://github.com/conda/conda/issues/918
-	def flatten_deps(deps, seen=None):
-		if seen is None:
-			seen = set()
-
-		fdeps = set(deps)
-		for dep in deps:
-			if dep not in seen:
-				try:
-					pi = products[dep]
-				except KeyError:
-					pass
-				else:
-					fdeps |= flatten_deps(pi.deps, seen)
-				seen.add(dep)
-		return fdeps
-	#deps = sorted(flatten_deps(deps))
-	deps = sorted(deps)
-
-	# Add specific numpy version
-#	deps = [ dep if dep != 'numpy' else config.numpy_version for dep in deps ]
-	deps = [ dep if dep != 'swig' else config.swig_version for dep in deps ]
-
-	#
-	# Create the Conda packaging spec files
-	#
-	dir = os.path.join(config.output_dir, conda_name)
-	os.makedirs(dir)
-
-	# Copy any patches into the recipe dir
-	patches = prepare_patches(product, dir)
-
-	# build.sh (TBD: use exact eups versions, instead of -r .)
-	setups = []
-	SEP = 'setup '
-	setups = SEP + ('\n'+SEP).join(setups) if setups else ''
-
-	fill_out_template(os.path.join(dir, 'build.sh'), 'build.sh.template',
-		setups = setups,
-		eups_version = eups_version,
-		eups_tags = ' '.join(eups_tags + config.global_eups_tags)
-	)
-
-	# pre-link.sh (to add the global tags)
-	fill_out_template(os.path.join(dir, 'pre-link.sh'), 'pre-link.sh.template',
-		product = product,
-	)
-
-	# meta.yaml
-	deps = [ conda_version_spec(p) if p in products else p for p in deps ]
-	reqstr = create_yaml_list(deps)
-
-	meta_yaml = os.path.join(dir, 'meta.yaml')
-	fill_out_template(meta_yaml, 'meta.yaml.template',
-		productNameLowercase = conda_name.lower(),
-		version = version,
-		gitrev = sha,
-		giturl = giturl,
-		build_req = reqstr,
-		run_req = reqstr,
-		patches = patches,
-	)
-
-	# The recipe is now (almost) complete.
-	# Find our build number. If this package already exists in the release DB,
-	# re-use the build number and mark it as '.done' so it doesn't get rebuilt.
-	# Otherwise, increment the max build number by one and use that.
-	buildnum, build_string, is_built = patch_buildinfo(conda_name.lower(), version, dir, build_string_prefix)
-
-	# record we've seen this product
-	products[conda_name] = ProductInfo(conda_name, version, build_string, buildnum, product, eups_version, deps, is_built, True)
-
-def get_build_info(conda_name, version, recipe_dir, build_string_prefix):
-	is_built = False
-	hash = db.hash_recipe(recipe_dir)
-	try:
-		buildnum = db[conda_name, version, hash]
-		is_built = True
-	except KeyError:
-		buildnum = db.get_next_buildnum(conda_name, version)
-
-	build_string = '%s_%s' % (build_string_prefix, buildnum) if build_string_prefix else str(buildnum)
-
-	return buildnum, build_string, is_built
-
-def patch_buildinfo(conda_name, version, recipe_dir, build_string_prefix):
-	# make sure meta.yaml has a 'build:' section, even if a dummy one
-	# otherwise the hashes will be computed incorrectly if it's added later
-	#
-	# Files generated by `conda skeleton` miss a build: section
-	metafn = os.path.join(recipe_dir, 'meta.yaml')
-	with open(metafn) as fp:
-		meta = fp.read()
-	if not re.search(r'^build:.*$', meta, re.MULTILINE):
-		meta += "\nbuild:\n"
-		meta += "  number: 0\n"
-		with open(metafn, "w") as fp:
-			fp.write(meta)
-
-	# Find the apropriate buildnum and buildstring
-	buildnum, build_string, is_built = get_build_info(conda_name, version, recipe_dir, build_string_prefix)
-
-	if is_built:
-		with open(os.path.join(recipe_dir, '.done'), 'w'):	# create the .done marker file
-			pass
-
-	# Patch meta.yaml
-	# The patterns we're matching/replacing:
-	# build:
-	#   number: <buildnum>
-	#   string: "<buildstr>"
-	# FIXME: this assumes there is a build: section in meta.yaml
-	# FIXME: all this feels veeeeeery clunky...
-	meta2 = re.sub(r'((?:^|\n)build:.*?\n +?string: ?)(.*?\n)', r'\1"%s"\n' % build_string, meta, count=1, flags=re.MULTILINE | re.DOTALL)
-	if meta2 == meta:
-		# no replacement has been made, probably because the build string wasn't specified; append it
-		meta2 = re.sub(r'(^build:\n)', r'\1  string: "%s"\n'      % build_string, meta, count=1, flags=re.MULTILINE | re.DOTALL)
-
-	meta  = re.sub(r'((?:^|\n)build:.*?\n +?number: ?)(.*?\n)', r'\g<1>%d\n' % buildnum, meta2, count=1, flags=re.MULTILINE | re.DOTALL)
-	if meta == meta2:
-		# no replacement has been made, probably because the buildnum wasn't specified; append it
-		meta = re.sub(r'(^build:\n)', r'\1  number: %d\n'    % buildnum, meta2, count=1, flags=re.MULTILINE | re.DOTALL)
-
-	with open(metafn, "w") as fp:
-		fp.write(meta)
-
-	return buildnum, build_string, is_built
-
-##################################
-# Use static recipes to satisfy dependencies
 #
-def copy_additional_recipe(config, name, products, workdir):
-	additional_recipes_dir = config.additional_recipes_dir
-	recipes = os.listdir(additional_recipes_dir)
+# Convenience: recover if our package is not on PYTHONPATH
+#
+try:
+	import conda_lsst
+except ImportError:
+	conda_lsst_path = os.path.realpath(os.path.join(root_dir))
+	sys.path.append(conda_lsst_path)
 
-	def _have_recipe(name):
-		return next((dir for dir in recipes if dir == name), None)
+from conda_lsst.utils import build_manifest_for_products
+from conda_lsst.recipe_maker import RecipeMaker
+from conda_lsst.recipe_db import RecipeDB
+from conda_lsst.config import Config
 
-	# Now recursively copy the recipe, and all others it depends on
-	def _copy_recipe(name, workdir):
-		src = os.path.join(additional_recipes_dir, name)
-		dest = os.path.join(workdir, name)
-		if os.path.isdir(dest):
-			# Already copied
-			return
+def main_build(config, args):
+	# Add any global EUPS tags
+	config.global_eups_tags += [ tag.strip() for tag in args.add_eups_tags.split(',') ]
+	print config.global_eups_tags
 
-		# copy the additional recipe
-		shutil.copytree(src, dest)
+	# Get the (ordered) list of EUPS products to build
+	manifest, tags = build_manifest_for_products(args.products, args.manifest)
 
-		# copy all its dependencies for which we have the recipes
-		import yaml
-		meta = yaml.load(open(os.path.join(src, 'meta.yaml')))
-		for kind in ['run', 'build']:
-			if kind in meta['requirements']:
-				for dep in meta['requirements'][kind]:
-					if _have_recipe(dep):
-						_copy_recipe(dep, workdir)
+	generator = RecipeMaker(config, args.root_dir, db)
+	generator.generate(manifest, tags)
 
-		# add to list of products, and decide if we need to rebuild it
-		assert name not in products
-
-		# Load name+version from meta.yaml
-		import yaml
-		with open(os.path.join(dest, 'meta.yaml')) as fp:	# FIXME: meta.yaml configs are not true .yaml files; this may fail in the future
-			meta = yaml.load(fp)
-		assert meta['package']['name'] == name, "meta['package']['name'] != name :::: (%s, %s)" % (meta['package']['name'], name)
-
-		version = meta['package']['version']
-		buildnum = 0
-		build_string = "0"
-		if 'build' in meta:
-			buildnum     = meta['build'].get('number', buildnum)
-			build_string = meta['build'].get('number', build_string)
-		ret = subprocess.check_output('conda search --use-local --spec --json %s=%s=%s' % (name, version, build_string), shell=True).strip()
-		is_built = ret != "{}"
-
-		products[name] = ProductInfo(name, version, build_string, buildnum, None, None, [], is_built, False)
-
-		report_progress(name, products[name].version)
-
-	recipe = _have_recipe(name)
-	if recipe is None:
-		raise Exception("A package depends on '%s', but there's no recipe to build it in '%s'" % (name, additional_recipes_dir))
-
-	_copy_recipe(name, workdir)
-
-def add_missing_deps(config, conda_name, workdir):
-	# inject missing dependencies, creating new conda packages if needed
-	# returns Conda package names
-	deps = []
-	for kind, dep in config.missing_deps.get(conda_name, []):
-		print '----', conda_name, ':', kind, dep
-		{
-			'recipe': copy_additional_recipe,
-			'conda': lambda config, dep, products, workdir: None,
-			'eups': lambda config, dep, products, workdir: None,
-		}[kind](config, dep, products, workdir)
-		deps.append(dep)
-
-	return deps
-
-def load_manifest(fn):
-	prefix_build = 'build:'
-
-	# is fn a reference to a tag in versiondb (something like 'build:b1497')?
-	if fn.startswith(prefix_build):
-		url = 'https://raw.githubusercontent.com/lsst/versiondb/master/manifests/%s.txt' % fn[len(prefix_build):]
-		import urllib2
-		print url
-		with contextlib.closing(urllib2.urlopen(url)) as fp:
-			lines = fp.read().split('\n')
+	if not args.dont_build:
+		print "building:"
+		subprocess.check_call('bash %s/rebuild.sh' % (config.output_dir), shell=True)
 	else:
-		# a regular file
-		with open(fn) as fp:
-			lines = fp.read().split('\n')
+		print ""
+		print "Recipes prepared in %s directory." % (config.output_dir)
+		print "Run 'bash %s/rebuild.sh' to build them." % (config.output_dir)
 
-	def parse_manifest_lines(lines):
-		for line in lines:
-			line = line.strip()
-			if not line:
-				continue
-			if line.startswith('#'):
-				continue
-
-			try:
-				(product, sha, version, deps) = line.split()
-				deps = deps.split(',')
-			except ValueError:
-				(product, sha, version) = line.split()
-				deps = []
-
-			yield (product, sha, version, deps)
-
-	build_id = None
-	if lines[1].startswith('BUILD='):
-		build_id = lines[1][len('BUILD='):]
-
-	return build_id, list( parse_manifest_lines(lines[2:]) )
-
-def main_upload_ssh(args):
+def main_upload_ssh(config, args):
 	#
 	# Upload using SSH
 	#
@@ -492,92 +101,12 @@ def main_upload_ssh(args):
 	except subprocess.CalledProcessError:
 		print "remote server reported an error (see above)."
 
-def main_tools_hash(args):
+def main_tools_hash(config, args):
 	db.hash_recipe(args.recipe_dir, verbose=True)
 
-def build_manifest_for_products(top_level_products):
-	# Load the manifest. Returns the OrderedDict and a set of EUPS tags
-	# to associate with the manifest
-
-	products = {}
-	build_id, manifest_lines = load_manifest(args.manifest)
-	for (product, sha, version, deps) in manifest_lines:
-		products[product] = (product, sha, version, deps)
-
-	# Extract the products of interest (and their dependencies)
-	manifest = OrderedDict()
-	def bottom_up_add_to_manifest(product):
-		(product, sha, version, deps) = products[product]
-		for dep in deps:
-			bottom_up_add_to_manifest(dep)
-		if product not in manifest:
-			manifest[product] = products[product]
-
-	for product in top_level_products:
-		bottom_up_add_to_manifest(product)
-
-	return manifest, [ build_id ] if build_id is not None else []
-
-def main_build(config, args):
-	# Add any global EUPS tags
-	config.global_eups_tags += [ tag.strip() for tag in args.add_eups_tags.split(',') ]
-	print config.global_eups_tags
-
-	# Get the (ordered) list of EUPS products to build
-	manifest, tags = build_manifest_for_products(args.products)
-
-	# Generate conda package files and build driver script
-	shutil.rmtree(config.output_dir, ignore_errors=True)
-	os.makedirs(config.output_dir)
-	print "generating recipes: "
-	for (product, sha, version, deps) in manifest.itervalues():
-		if product in config.internal_products: continue
-		if product in config.skip_products: continue
-
-		# override gitrevs (these are temporary hacks/fixes; they should go away when those branches are merged)
-		sha = config.override_gitrev.get(product, sha)
-
-		# Where is the source?
-		giturl = config.get_giturl(product)
-
-		gen_conda_package(config, product, sha, version, giturl, deps, tags)
-	print "done."
-
-	#
-	# write out the rebuild script for packages that need rebuilding
-	#
-	rebuilds = []
-	print "generating rebuild script:"
-	for pi in products.itervalues():
-		conda_version = "%s-%s" % (pi.version, pi.build_string)
-
-		rebuilds.append("rebuild %s %s %s %s" % (pi.conda_name, conda_version, pi.product, pi.eups_version))
-		if not pi.is_built:
-			print "  will build:    %s-%s" % (pi.conda_name, conda_version)
-		else:
-			print "  already built: %s-%s" % (pi.conda_name, conda_version)
-	print "done."
-
-	fill_out_template(os.path.join(config.output_dir, 'rebuild.sh'), 'rebuild.sh.template',
-		output_dir = config.output_dir,
-		rebuilds = '\n'.join(rebuilds)
-		)
-
-	if not args.dont_build:
-		print "building:"
-		subprocess.check_call('bash %s/rebuild.sh' % (config.output_dir), shell=True)
-	else:
-		print ""
-		print "Generation completed; The recipes are in %s directory." % (config.output_dir)
-		print "Run 'bash %s/rebuild.sh' to build them." % (config.output_dir)
-
 if __name__ == "__main__":
-#	test_release_db()
-#	exit()
-
 	# Load config file
-	from config import Config
-	config = Config('config.yaml')
+	config = Config(root_dir, 'config.yaml')
 
 	import argparse
 	tl_parser = parser = argparse.ArgumentParser()
@@ -615,11 +144,11 @@ if __name__ == "__main__":
 	parser.set_defaults(func=main_tools_hash)
 
 	args = tl_parser.parse_args()
+	args.root_dir = root_dir
 
 	# Load the built products cache database
-	db = ReleaseDB(root_dir, config.platform)
+	db = RecipeDB(root_dir, config.platform)
 	if not args.no_cache_refresh:
 		db.reindex(config.channels)
 
 	args.func(config, args)
-

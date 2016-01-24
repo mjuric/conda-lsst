@@ -1,0 +1,31 @@
+#
+# To build a Conda package, run conda build as:
+#
+#    conda build .
+#
+
+package:
+  name: lsst-product-configs
+  version: 0.0.1
+
+build:
+  number: 0
+  string: "0"
+
+source:
+  git_tag: 1.0.0
+  git_url: https://github.com/mjuric/legacy_configs
+
+requirements:
+  build:
+    - python
+    - eups
+
+  run:
+    - python
+    - eups
+
+about:
+  home: https://github.com/mjuric/legacy_configs
+  license: GPLv2
+  summary: EUPS product configs for products that are distributed with Anaconda

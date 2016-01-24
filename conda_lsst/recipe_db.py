@@ -1,6 +1,7 @@
 import os
 import os.path
 import sys
+import tempfile
 
 import sqlalchemy
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
@@ -62,7 +63,7 @@ def get_or_create(session, model, **kwargs):
 		session.commit()
 		return instance
 
-class ReleaseDB(object):
+class RecipeDB(object):
 	server   = None
 	channel  = None
 
@@ -327,7 +328,7 @@ def download_url(url, fp):
 	fp.flush()
 
 def test_release_db():
-	db = ReleaseDB()
+	db = RecipeDB()
 
 	name, version = "eups", "1.5.9_1"
 	dir = 'recipes/static/eups'

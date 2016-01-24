@@ -15,21 +15,14 @@ source:
 %(patches)s
 
 build:
-#--  number: 0		# this will be added by patch_buildinfo()
-#--  string: "0"	# this will be added by patch_buildinfo()
+  number: %%(buildnum)s
+  string: "%%(build_string)s"
 #  binary_relocation: false
 
 requirements:
-  build:
-    - patchelf >=0.8	# [not osx]
-    - python
-    - eups
-    - libgcc%(run_req)s
+  build:%(build_req)s
 
-  run:
-    - python
-    - eups
-    - libgcc%(run_req)s
+  run:%(run_req)s
 
 about:
   home: "%(giturl)s"
