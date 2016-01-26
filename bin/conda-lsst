@@ -18,19 +18,19 @@ from conda_lsst.recipe_maker import RecipeMaker
 from conda_lsst.recipe_db import RecipeDB
 from conda_lsst.config import Config
 
-def main_build(config, args):
+def main_make_recipes(config, args):
 	# Add any global EUPS tags
 	config.global_eups_tags += [ tag.strip() for tag in args.add_eups_tags.split(',') ]
 	print config.global_eups_tags
 
-	# Get the (ordered) list of EUPS products to build
+	# Get the (ordered) list of EUPS products to make recipes for
 	manifest, tags = build_manifest_for_products(args.products, args.manifest)
 
 	generator = RecipeMaker(config, args.root_dir, db)
 	generator.generate(manifest, tags)
 
-	if not args.dont_build:
-		print "building:"
+	if args.build:
+		print "calling %s/rebuild.sh to build:" % (config.output_dir)
 		subprocess.check_call('bash %s/rebuild.sh' % (config.output_dir), shell=True)
 	else:
 		print ""
@@ -115,15 +115,15 @@ if __name__ == "__main__":
 	subparsers = tl_parser.add_subparsers()
 
 	# gen subcommand	
-	parser = subparsers.add_parser('build')
+	parser = subparsers.add_parser('make-recipes')
 	parser.add_argument("manifest", help="lsst_build-generated manifest file from which to read the package list and their versions. "
 		+ "If given as 'build:<buildtag>' (e.g., build:b1488), the manifest with that build ID will be looked up in versiondb.git. "
 		+ "Note: the file format is the same as that found in https://github.com/lsst/versiondb/tree/master/manifests."
 		, type=str)
 	parser.add_argument("products", help="the top-level products; Conda recipes will be generated for these and all their dependencies.", type=str, nargs='+')
-	parser.add_argument("--dont-build", help="generate the recipes but don't build the packages.", action="store_true")
+	parser.add_argument("--build", help="build the recipes after generation.", action="store_true")
 	parser.add_argument("--add-eups-tags", help="comma-separated list of EUPS tags to attach to generated packages.", type=str, default='')
-	parser.set_defaults(func=main_build)
+	parser.set_defaults(func=main_make_recipes)
 
 	# upload subcommand
 	parser = subparsers.add_parser('upload')
