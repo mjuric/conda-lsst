@@ -30,11 +30,11 @@ class RecipeMaker(object):
 			return conda_name
 
 	def prepare_patches(self, product, dir):
-		patchdir = os.path.join(self.root_dir, 'patches', product)
-		if not os.path.isdir(patchdir):
+		patch_dir = os.path.join(self.config.patch_dir, product)
+		if not os.path.isdir(patch_dir):
 			return ''
 
-		patch_files = glob.glob(os.path.join(patchdir, '*.patch'))
+		patch_files = glob.glob(os.path.join(patch_dir, '*.patch'))
 
 		for patchfn in patch_files:
 			shutil.copy2(patchfn, dir)

@@ -102,7 +102,7 @@ def main_tools_hash(config, args):
 
 if __name__ == "__main__":
 	# Load config file
-	config = Config(root_dir, 'config.yaml')
+	config = Config(root_dir, 'etc/config.yaml')
 
 	import argparse
 	tl_parser = parser = argparse.ArgumentParser()

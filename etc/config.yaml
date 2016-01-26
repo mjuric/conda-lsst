@@ -18,7 +18,7 @@ override_gitrev: {}
 #
 # Directory with patches
 #
-patchdir: patches
+patch_dir: etc/patches
 
 #
 # A list of EUPS products that are to be replaced by internal (i.e., available
@@ -182,16 +182,16 @@ pin_versions:
 # These are most often conda packages for packages out of PyPI, typically
 # generated using conda-skeleton.
 #
-additional_recipes_dir: "recipes/external"
+additional_recipes_dir: "etc/recipes"
 
 #
 # Directory where the recipe templates are.
 #
-template_dir: "templates"
+template_dir: "etc/templates"
 
 # Output directory where the package specs will be generated (and the rebuild script)
 # DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
-output_dir: "recipes/generated"
+output_dir: "recipes"
 
 #
 # A regexp matching the channels to which we'll upload. This is used to know which channels

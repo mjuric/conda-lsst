@@ -42,7 +42,7 @@ export PATH="$PWD/bin:$PATH/miniconda/bin:$PATH"
 # Tell conda where the channel we'll be uploading to is
 conda config --add channels http://eupsforge.net/conda/dev
 
-# Build conda packages for LSST codes (the recipes will be stored in recipes/generated subdirectory)
+# Build conda packages for LSST codes (the recipes will be stored in the `recipes` subdirectory)
 conda lsst make-recipes build:b1852 lsst_distrib lsst_sims --build
 
 # Upload to the 'dev' channel
@@ -52,7 +52,7 @@ conda lsst upload
 Note: `conda-lsst` is [smart about not rebuilding](#tracking-rebuilds) packages
 that have already been built.
 
-Build logs are stored in `recipes/generated/<packagename>/_build.log`.
+Build logs are stored in `recipes/<packagename>/_build.log`.
 Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
@@ -127,7 +127,7 @@ into the code. The basic instructions on how to run it are above.
    dependencies as necessary.
 
  * The list of products will be topologically sorted and a recipe
-   will be created in `recipes/generated` subdirectory for each one that
+   will be created in `recipes` subdirectory for each one that
    needs to be built.
 
  * Of all channels known to `conda build`, those matching `our_channel_regex`
@@ -207,7 +207,7 @@ source eups-setups.sh
 necessary to specify the full path to `eups-setups.sh` -- scripts to be
 sourced are looked up on `$PATH`.
 
-For details, see the recipe in [`recipes/external/eups`](recipes/external/eups).
+For details, see the recipe in [`etc/recipes/eups`](etc/recipes/eups).
 
 Conda-packaged EUPS is **fully functional**. You can use it to install
 additional EUPS products (for example, with `eups distrib install`), add
@@ -229,7 +229,7 @@ Their EUPS information (`.version` and `.chain` files) unpacks itself into
 product as soon as it's installed.
 
 For details, see the section on [the build system](#the-build-system) and
-the files in the [templates/](templates/) subdirectory.
+the files in the [`etc/templates`](etc/templates) subdirectory.
 
 #### EUPS tags
 
@@ -243,7 +243,7 @@ It should be easy to extend 'conda-lsst' to take arbitrary additional tags
 that all tags EUPS knows about must be declared in
 `$ROOT/var/opt/eups/ups_db/global.tags` file; the code already automatically
 handles that using a `pre-link.sh` script (see
-`templates/pre-link.sh.template`).
+`etc/templates/pre-link.sh.template`).
 
 Note that once the package is installed, you can use EUPS to declare
 additional tags, as you wish.
@@ -251,7 +251,7 @@ additional tags, as you wish.
 #### How the generated recipes build the binaries
 
 `conda lsst make-recipes` generates the build recipes by filling out the missing
-information in `.template` files found in the [templates/](templates/)
+information in `.template` files found in the [`etc/templates`](etc/templates)
 directory. The generation is completely automatic.
 
 The build maximally reuses the `eupspkg.sh` build system that all LSST EUPS
@@ -304,7 +304,7 @@ The solution to this problem has two parts:
  * Firsly, the `.table` and `.cfg` files of all such packages have been 
    collected in one [legacy_configs](http://github.com/mjuric/legacy_configs)
    repository. A conda package for this repository is built by a recipe in
-   `recipes/external/lsst-product-configs`, and declares all the products
+   `etc/recipes/lsst-product-configs`, and declares all the products
    in question to EUPS.
 
  * Secondly, if a product depends on any of these packages, we also add a
@@ -334,7 +334,8 @@ variable in `config.yaml`
 #### Patching
 
 Any conda-specific patches needed to build the products should be placed in
-`<patches>/<product>/` directory, with a `.patch` extension. They should
+`etc/patches/<product>/` directory (the location can be changed by
+setting `patchdir` in `config.yaml`), with a `.patch` extension. They should
 apply with `patch -p0`. See the patches currently there for examples.
 
 Hint: if you're generating the patches with `git diff` (as you probably
@@ -357,7 +358,7 @@ so, as it makes it impossible to guarantee offline installs).
 For these packages to build, we need to:
 
   * manually create recipes for all of their dependencies, and place them in
-    `recipes/external`. The easiest way to do this is by using
+    `etc/recipes`. The easiest way to do this is by using
     [`conda skeleton`](http://conda.pydata.org/docs/commands/build/conda-skeleton.html).
   * Declare their depenencies in `config.yaml` by adding them to the
     `dependencies` list, with their name prefixes by `recipe/`.
@@ -508,7 +509,7 @@ A *rebuild* is when the same source code (i.e., having the same git SHA),
 including the dependencies and EUPS versions, is rebuilt using a different
 recipe (e.g., the recipe may have been modified to change a compiler flag,
 or add a new a conda-specific patch, etc.). This may happen when the
-recipe templates in `templates/` are changed. A rebuild will keep the
+recipe templates in `etc/templates` are changed. A rebuild will keep the
 same version, but the build number (and therefore the build string --
 by convention, build strings are some `<prefix>_<buildnum>` or just
 `<buildnum>`) will increment to reflect this is a rebuild (an example may be

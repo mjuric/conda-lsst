@@ -30,6 +30,11 @@ class Config(object):
 	#
 	template_dir = None
 
+	#
+	# Directory where the product patches are.
+	#
+	patch_dir = None
+
 	# Products that already exist in Anaconda; we'll skip building those (but will depend on them)
 	# This is a dictionary, with value optionally containing another dictionary with
 	# conda package specification for build and run clauses in meta.yaml. If the value is None
@@ -227,6 +232,7 @@ class Config(object):
 		self.output_dir = expand_path(root_dir, config['output_dir'])
 		self.additional_recipes_dir = expand_path(root_dir, config['additional_recipes_dir'])
 		self.template_dir = expand_path(root_dir, config['template_dir'])
+		self.patch_dir = expand_path(root_dir, config['patch_dir'])
 		self.skip_products = set(config['skip_products'])
 		self.skip_build = config.get('skip-build', {})
 
