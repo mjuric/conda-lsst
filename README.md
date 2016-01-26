@@ -37,7 +37,7 @@ To generate all packages and upload them to a remote service, run someting like 
 
 ```bash
 # Add conda-lsst to PATH. This will allow you to call it as `conda lsst`
-export PATH="$PWD/bin:$PATH/miniconda/bin:$PATH"
+export PATH="$PWD/bin:$PATH"
 
 # Tell conda where the channel we'll be uploading to is
 conda config --add channels http://eupsforge.net/conda/dev
