@@ -1,13 +1,4 @@
-# Package the [LSST Software Stack](http://dm.lsst.org) with [Conda](http://conda.pydata.org)
-
-`conda-lsst` is a community-driven project created to make it easier for the
-broader community to obtain and run the most excellent LSST codes
-(disclaimer: the principal author of `conda-lsst` is also the LSST DM
-Project Scientist; debias accordingly).
-
-**IMPORTANT: `conda-lsst` is not a product of the [LSST project](http://lsst.org).** 
-It is an independent (and highly experimental) effort. For all questions or
-support, please open an issue in this repository or contact the authors.
+# [Conda](http://conda.pydata.org) recipe generator for the [LSST Software Stack](http://dm.lsst.org)
 
 ## Overview
 
