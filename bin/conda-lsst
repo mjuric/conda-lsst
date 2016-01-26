@@ -48,7 +48,7 @@ def main_upload_ssh(config, args):
 
 	if channel is None: # if the channel wasn't explicitly given, use the first remote channel
 		try:
-			channel = channel_names[0]
+			channel = config.channel_names[0]
 		except IndexError:
 			print >>sys.stderr, "error: there are no channels in your ~/.condarc that match the regular expression:"
 			print >>sys.stderr, ""
@@ -61,14 +61,14 @@ def main_upload_ssh(config, args):
 			print >>sys.stderr, ""
 			print >>sys.stderr, "and try again."
 			exit(-1)
-	elif channel not in channel_names: # if the channel was explicitly given, check that condarc knows about it
+	elif channel not in config.channel_names: # if the channel was explicitly given, check that condarc knows about it
 		print >>sys.stderr, "error: you've requested to upload to channel '%s', but that channel doesn't" % channel
 		print >>sys.stderr, "appear to be listed in your ~/.condarc file."
 		print >>sys.stderr, "aborting out of abundance of caution."
 		exit(-1)
 
 	# construct the full remote path
-	dir = '/'.join([channel_dir_base, channel, platform])
+	dir = '/'.join([config.channel_dir_base, channel, config.platform])
 
 	# summarize what we're about to do
 	print "will upload to:"
@@ -91,7 +91,7 @@ def main_upload_ssh(config, args):
 		else:
 			subprocess.check_call(['scp', '-p'] + files + [dest])			# upload files
 		subprocess.check_call(['ssh', '-qt', server, conda, 'index', dir])		# reindex the server
-		db.reindex(channels)								# refresh local cache
+		db.reindex(config.channels)							# refresh local cache
 
 		print "upload completed."
 	except subprocess.CalledProcessError:
