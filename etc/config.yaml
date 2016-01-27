@@ -45,6 +45,8 @@ internal_products:
   numpy:
   protobuf:
   matplotlib:
+  pyyaml:
+  sqlalchemy:
 
 #
 # EUPS products we should ignore alltogether
