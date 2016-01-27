@@ -1,0 +1,43 @@
+diff --git patches/asm-compat.patch patches/asm-compat.patch
+new file mode 100644
+index 0000000..2370776
+--- /dev/null
++++ patches/asm-compat.patch
+@@ -0,0 +1,15 @@
++diff -ru mariadb-10.1.9.orig/include/my_context.h mariadb-10.1.9/include/my_context.h
++--- mariadb-10.1.9.orig/include/my_context.h	2015-11-20 17:08:02.000000000 -0800
+++++ mariadb-10.1.9/include/my_context.h	2016-01-27 00:26:50.000000000 -0800
++@@ -27,8 +27,10 @@
++ 
++ #ifdef __WIN__
++ #define MY_CONTEXT_USE_WIN32_FIBERS 1
++-#elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__x86_64__) && !defined(__ILP32__)
+++#elif defined(__clang__)
++ #define MY_CONTEXT_USE_X86_64_GCC_ASM
+++#elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__x86_64__) && !defined(__ILP32__)
+++#define MY_CONTEXT_USE_UCONTEXT
++ #elif defined(__GNUC__) && __GNUC__ >= 3 && defined(__i386__)
++ #define MY_CONTEXT_USE_I386_GCC_ASM
++ #elif defined(HAVE_UCONTEXT)
+diff --git ups/eupspkg.cfg.sh ups/eupspkg.cfg.sh
+index 0d4ddb9..22d0dcd 100644
+--- ups/eupspkg.cfg.sh
++++ ups/eupspkg.cfg.sh
+@@ -1,7 +1,15 @@
+ # EupsPkg config file. Sourced by 'eupspkg'
+ 
++# To avoid errors linking to conda's SSL libraries
++export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_DEFAULT_ENV/lib"
++
+ config()
+ {
+-    # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
+-    cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO
++    if [[ $(uname) == Linux ]]; then
++        # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
++        cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO -DHAVE_CXX_NEW=NO -DPLUGIN_MROONGA=NO
++    else
++        # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
++        cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO
++    fi
+ }
