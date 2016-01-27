@@ -1,5 +1,7 @@
 *~
 *.pyc
-recipes/generated
-pkginfo-cache
 miniconda
+pkginfo-cache
+recipes/
+recipes/generated
+repo-cache/
