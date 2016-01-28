@@ -38,7 +38,6 @@ patch_dir: etc/patches
 internal_products:
   python:
   swig:
-  libevent:
   flask:
   twisted:
   scons:
