@@ -5,8 +5,8 @@ index 0000000..2370776
 +++ patches/asm-compat.patch
 @@ -0,0 +1,15 @@
 +diff -ru mariadb-10.1.9.orig/include/my_context.h mariadb-10.1.9/include/my_context.h
-+--- mariadb-10.1.9.orig/include/my_context.h	2015-11-20 17:08:02.000000000 -0800
-++++ mariadb-10.1.9/include/my_context.h	2016-01-27 00:26:50.000000000 -0800
++--- mariadb-10.1.9.orig/include/my_context.h   2015-11-20 17:08:02.000000000 -0800
+++++ mariadb-10.1.9/include/my_context.h        2016-01-27 00:26:50.000000000 -0800
 +@@ -27,8 +27,10 @@
 + 
 + #ifdef __WIN__
@@ -20,10 +20,10 @@ index 0000000..2370776
 + #define MY_CONTEXT_USE_I386_GCC_ASM
 + #elif defined(HAVE_UCONTEXT)
 diff --git ups/eupspkg.cfg.sh ups/eupspkg.cfg.sh
-index 0d4ddb9..22d0dcd 100644
+index 4de3f87..76f4afe 100644
 --- ups/eupspkg.cfg.sh
 +++ ups/eupspkg.cfg.sh
-@@ -1,7 +1,15 @@
+@@ -1,5 +1,8 @@
  # EupsPkg config file. Sourced by 'eupspkg'
  
 +# To avoid errors linking to conda's SSL libraries
@@ -31,13 +31,11 @@ index 0d4ddb9..22d0dcd 100644
 +
  config()
  {
--    # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
--    cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO
-+    if [[ $(uname) == Linux ]]; then
-+        # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
-+        cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO -DHAVE_CXX_NEW=NO -DPLUGIN_MROONGA=NO
-+    else
-+        # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
-+        cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO
-+    fi
+     # Disable external SSL on OS X as it is not a standard library
+@@ -10,5 +13,5 @@ config()
+     fi
+ 
+     # TokuDB requires third-party software jemalloci (see http://www.canonware.com/jemalloc/)
+-    cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DPLUGIN_TOKUDB=NO $ssloptions
++    cmake . -DCMAKE_INSTALL_PREFIX=${PREFIX} -DHAVE_CXX_NEW=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO $ssloptions
  }
