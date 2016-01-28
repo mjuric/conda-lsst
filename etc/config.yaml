@@ -47,6 +47,7 @@ internal_products:
   matplotlib:
   pyyaml:
   sqlalchemy:
+  requests:
 
 #
 # EUPS products we should ignore alltogether
