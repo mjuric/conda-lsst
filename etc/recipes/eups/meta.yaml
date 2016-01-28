@@ -8,7 +8,7 @@
 
 package:
   name: eups
-  version: {{ environ.get('GIT_DESCRIBE_TAG', '') + (('_%s' % environ['GIT_DESCRIBE_NUMBER']) if environ.get('GIT_DESCRIBE_NUMBER', '0') != '0' else '') }}
+  version: 1.5.9
 
 build:
   number: 7

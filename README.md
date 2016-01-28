@@ -1,37 +1,29 @@
-# Package the [LSST Software Stack](http://dm.lsst.org) with [Conda](http://conda.pydata.org)
-
-`conda-lsst` is a community-driven project created to make it easier for the
-broader community to obtain and run the most excellent LSST codes
-(disclaimer: the principal author of `conda-lsst` is also the LSST DM
-Project Scientist; debias accordingly).
-
-**IMPORTANT: `conda-lsst` is not a product of the [LSST project](http://lsst.org).** 
-It is an independent (and highly experimental) effort. For all questions or
-support, please open an issue in this repository or contact the authors.
+# [Conda](http://conda.pydata.org) recipe generator for the [LSST Software Stack](http://dm.lsst.org)
 
 ## Overview
 
-This repository contains the utility `conda-lsst` that can generate
-[Conda](http://conda.pydata.org) recipes for LSST stack packages, build
-them, and upload to a remote web server from where they will be installable
-using `conda install`.
+This repository contains `conda-lsst`, a utility that generates
+[Conda](http://conda.pydata.org) recipes for LSST stack packages. The
+recipes are generated using the information stored in
+[EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
+that LSST uses internally.
+
+`conda-lsst` also provides a convenient mechanism to build the generated
+recipes in proper order, and to upload the resulting binaries to a remote
+web server from where they will be installable using `conda install`.
 
 You *only* need this code if you wish to create and distribute your own build
 of the LSST stack; `conda-lsst` is **not** needed to just use the LSST
 codes. If all you want is to *install* the LSST stack, skip to the
 [Installing](#installing-lsst-software-using-conda) section.
 
-The recipes are generated using the information stored in
-[EUPS](https://github.com/RobertLuptonTheGood/eups), the package manager
-that LSST uses internally.
-
 This code is beta quality; it is expected to work on OS X and Linux.
 
 ## Prerequisites
 
 You need at least [Miniconda](conda.pydata.org/miniconda.html) with
-`conda-build`, `jinja2`, `anaconda-client` (provides `binstar`), `requests`,
-`sqlalchemy` packages installed, and the `requests_file` python module (install
+`conda-build`, `jinja2`, `requests`, and `sqlalchemy` packages installed, 
+as well as the `requests_file` python module (install
 with `pip install requests_file`). For your convenience, there's a script,
 [./bin/bootstrap.sh](bin/bootstrap.sh), that when run:
 ```bash
@@ -39,7 +31,7 @@ bash ./bin/bootstrap.sh
 ```
 will install all of these for you into a subdirectory named `miniconda`.
 
-## Building Conda packages
+## Generating Conda recipes, and building the packages
 
 To generate all packages and upload them to a remote service, run someting like the following:
 
@@ -50,30 +42,17 @@ export PATH="$PWD/bin:$PATH"
 # Tell conda where the channel we'll be uploading to is
 conda config --add channels http://eupsforge.net/conda/dev
 
-# If on Linux, build patchelf v0.8 (but see the note below)
-conda build recipes/static/patchelf
-
-# Build the prerequisites (but see the note below)
-conda build recipes/static/eups
-conda build recipes/static/legacy_configs
-
-# Build conda packages for LSST codes (the recipes will be stored in recipes/generated subdirectory)
-conda lsst build build:b1828 lsst_distrib lsst_sims
+# Build conda packages for LSST codes (the recipes will be stored in the `recipes` subdirectory)
+conda lsst make-recipes build:b1852 lsst_distrib lsst_sims --build
 
 # Upload to the 'dev' channel
 conda lsst upload
 ```
 
-Note: If the packages for the recipes in the static directory (i.e., `eups`,
-`legacy_configs` already exist on the upstream channel, there's no need to
-build them again.  You generally need to build them only if you're
-bootstrapping a new conda channel from scratch, or have updated their
-versions.
-
-`conda-lsst` is [smart about not rebuilding](#tracking-rebuilds) packages
+Note: `conda-lsst` is [smart about not rebuilding](#tracking-rebuilds) packages
 that have already been built.
 
-Build logs are stored in `recipes/generated/<packagename>/_build.log`.
+Build logs are stored in `recipes/<packagename>/_build.log`.
 Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
@@ -109,7 +88,7 @@ Anaconda Python distribution.  It has support for building and distribution
 of binaries: given a *recipe* -- a shell script that contains commands
 needed to build the binary, plus some metadata -- the `conda-build` utility
 will build the source and tarball it into a "conda package" (physically, a
-`.tar.bz` file).  When uploaded to a [specially
+`.tar.bz2` file).  When uploaded to a [specially
 formatted](http://conda.pydata.org/docs/spec.html#repository-structure-and-index)
 web-accessible directory (or a hosted service such as anaconda.org), these
 binary packages can then be installed by the user using the `conda install`
@@ -130,41 +109,43 @@ separate `newinstall.sh` script).
 
 The `conda-lsst` script uses the package dependency information extracted
 from EUPS, and the eupspkg build system, to generate conda recipes that
-build LSST codes **for a specific release**, build those recipes, and upload
-the results to a package repository.
+build LSST codes **for a specific release**. It also generates a script
+to build those recipes (in dependency-sorted order), as well as provies
+a convenient `upload` utility to upload the built binaries to a package
+repository.
 
 This section describes technical details and design consideration that went
 into the code. The basic instructions on how to run it are above.
 
 #### Overview: what happens when you run `conda lsst build`
 
- * `conda lsst build` reads the list of all products, their versions, and their
-   dependencies from the manifest file (the first argument). The remaining
-   arguments list the EUPS names of the products to be turned into conda
-   packages.  Only "top level" products needs to be specified --
+ * `conda lsst make-recipes` reads the list of all products, their versions,
+   and their dependencies from the manifest file (the first argument).  The
+   remaining arguments list the EUPS names of the products to be turned into
+   conda packages.  Only "top level" products needs to be specified --
    `conda-lsst` will traverse the dependency tree and process all
    dependencies as necessary.
 
  * The list of products will be topologically sorted and a recipe
-   will be created in `recipes/generated` subdirectory for each one that
+   will be created in `recipes` subdirectory for each one that
    needs to be built.
 
- * All channels known to `conda build` (see the `channels` global
-   variable) will be searched for packages with an identical recipe. If
+ * Of all channels known to `conda build`, those matching `our_channel_regex`
+   in `config.yaml` will be searched for packages with an identical recipe. If
    one is found, that means the package has already been built and doesn't
    need to be rebuilt once again (in which case a '.done' file will be
    placed into the particular product's recipe directory). N.b.: the actual
    lookup is sped up by hashing and using a database ([see
    below](#tracking-rebuilds)).
    
- * Unless `--dont-build` was given on the command line, `conda lsst build`
+ * If `--build` is given on the command line, `conda lsst make-recipes`
    will run `conda build` on each recipe, to build the packages. The results
    are stored in `$CONDA_ROOT/conda-bld/<platform>/` directory (where platform
    is typically `osx-64` or `linux-64`, depending on your machine).
 
  * The resulting packages can be uploaded to a remote repository using the
-   `conda lsst upload` command. It knows how to upload to anaconda.org and
-   via `ssh` to arbitrary servers.
+   `conda lsst upload` command. It uses either `scp` or `rsync` to upload the
+   results to the destination server.
 
 #### Inputs
 
@@ -182,12 +163,21 @@ Subsets of the build can also be generated by providing a list of top-level
 packages on the command line (e.g., very useful when debugging, as one
 doesn't need to repeat a whole build for a quick test).
 
-Given a buildbot build tag, one can pull the `manifest.txt` directly from
+For convenience, given a build tag, one can pull the `manifest.txt` directly from
 [versiondb directory](https://github.com/lsst/versiondb/tree/master/manifests)
-where they are kept, e.g.:
+where they are kept. That lets you do things such as:
 ```bash
-conda lsst build build:b1497 wcslib
+conda lsst make-recipes build:b1497 wcslib
 ```
+
+#### Tuning the recipe generation: config.yaml
+
+Recipe generation is controlled by entries in [`config.yaml`](config.yaml) file.
+They control virtually all aspects of recipe generation, from injecting
+missing system dependencies, to defining the output directories and
+default destination servers to upload to.
+
+Refer to the comments in [`config.yaml`](config.yaml) for more.
 
 #### Conda-packaged EUPS
 
@@ -202,7 +192,10 @@ environment you're installing into.
 We've chosen **not** to install the EUPS binary (`eups`) into the global
 `$ROOT/bin/` directory (that is on the users' path).  This is because EUPS
 needs to be correctly initialized before use, and it's likely users would
-forget to do this.  The initialization is typically done by `source`-ing the
+forget to do this. Instead, we install a dummy `eups` and `setup` scripts
+there that remind the users of the need to initialize EUPS before continuing.
+
+The initialization is typically done by `source`-ing the
 `setups.sh` script from its `bin/` directory (this is the majority of what
 `loadLSST.sh` does).  The conda package links those scripts into the global
 `$ROOT/bin/` directory, but prefixed with `eups-`. Therefore, to initialize
@@ -214,7 +207,7 @@ source eups-setups.sh
 necessary to specify the full path to `eups-setups.sh` -- scripts to be
 sourced are looked up on `$PATH`.
 
-For details, see the recipe in [`recipes/static/eups`](recipes/static/eups).
+For details, see the recipe in [`etc/recipes/eups`](etc/recipes/eups).
 
 Conda-packaged EUPS is **fully functional**. You can use it to install
 additional EUPS products (for example, with `eups distrib install`), add
@@ -236,7 +229,7 @@ Their EUPS information (`.version` and `.chain` files) unpacks itself into
 product as soon as it's installed.
 
 For details, see the section on [the build system](#the-build-system) and
-the files in the [templates/](templates/) subdirectory.
+the files in the [`etc/templates`](etc/templates) subdirectory.
 
 #### EUPS tags
 
@@ -250,15 +243,15 @@ It should be easy to extend 'conda-lsst' to take arbitrary additional tags
 that all tags EUPS knows about must be declared in
 `$ROOT/var/opt/eups/ups_db/global.tags` file; the code already automatically
 handles that using a `pre-link.sh` script (see
-`templates/pre-link.sh.template`).
+`etc/templates/pre-link.sh.template`).
 
 Note that once the package is installed, you can use EUPS to declare
 additional tags, as you wish.
 
-#### The build system
+#### How the generated recipes build the binaries
 
-`conda lsst build` generates the build recipes by filling out the missing
-information in `.template` files found in the [templates/](templates/)
+`conda lsst make-recipes` generates the build recipes by filling out the missing
+information in `.template` files found in the [`etc/templates`](etc/templates)
 directory. The generation is completely automatic.
 
 The build maximally reuses the `eupspkg.sh` build system that all LSST EUPS
@@ -311,13 +304,13 @@ The solution to this problem has two parts:
  * Firsly, the `.table` and `.cfg` files of all such packages have been 
    collected in one [legacy_configs](http://github.com/mjuric/legacy_configs)
    repository. A conda package for this repository is built by a recipe in
-   `recipes/static/legacy_configs`, and declares all the products in question
-   to EUPS.
+   `etc/recipes/lsst-product-configs`, and declares all the products
+   in question to EUPS.
 
- * Second, the dependency on any of these packages is changed to a
-   dependency on `legacy_configs`. Therefore, the package that (for example)
-   requires `protobuf` will pull in `legacy_configs` when it's build with
-   `conda build` or installed with `conda install`
+ * Secondly, if a product depends on any of these packages, we also add a
+   dependency on `lsst-product-configs`. Therefore, a recipe for a product
+   that (for example) requires `protobuf` will pull in `lsst-product-configs`
+   when it's build with `conda build` or installed with `conda install`
 
 Caveats:
 
@@ -327,7 +320,7 @@ Caveats:
    of the relevant commit of their individual parent product's git repos.
    
  * these products are listed by hand in the `internal_products` variable in
-   `conda-lsst`. If the list changes, it needs to be updated by hand.
+   `config.yaml`.
 
 This is all a workaround; the long-term solution is not to depend on `.cfg`
 files for builds and instead use something more standard, like `pkg-config`.
@@ -335,12 +328,14 @@ files for builds and instead use something more standard, like `pkg-config`.
 #### Skipped products
 
 The code currently skips over a few (optional) products, most notably
-`afw-data` (that is very large). This is hardcoded in the `skip_products` variable.
+`afw-data` (that is very large). This is defined in the `skip_products`
+variable in `config.yaml`
 
 #### Patching
 
 Any conda-specific patches needed to build the products should be placed in
-`<patches>/<product>/` directory, with a `.patch` extension. They should
+`etc/patches/<product>/` directory (the location can be changed by
+setting `patchdir` in `config.yaml`), with a `.patch` extension. They should
 apply with `patch -p0`. See the patches currently there for examples.
 
 Hint: if you're generating the patches with `git diff` (as you probably
@@ -355,20 +350,29 @@ for certain commits (or commits coming before a certain commit).
 
 #### PyPI dependencies (and missing/undeclared dependencies)
 
-Some (external, wrapped) EUPS products, most notably `pyfits` and `pymssql`
+Some (external, wrapped) EUPS products, most notably `sncosmo` and `pymssql`
 are distutils packaged Python products that transparently use `easy_install`
 to install additional dependencies. Conda does not allow this (and rightly
 so, as it makes it impossible to guarantee offline installs).
 
-`conda lsst build` automatically generates conda recipes and builds packages
-for dependencies from PyPI. These are **not** prefixed with `lsst-`, like
-other EUPS packages (see [Naming and Versioning](#naming-and-versioning)
-below).
+For these packages to build, we need to:
 
-The information on which packages need this treatment is hardcoded in
-`missing_deps` variable. Note that some EUPS packages have *undeclared*
-dependencies as well (e.g., `sims_catalogs_generation` depends on
-`sqlalchemy`).
+  * manually create recipes for all of their dependencies, and place them in
+    `etc/recipes`. The easiest way to do this is by using
+    [`conda skeleton`](http://conda.pydata.org/docs/commands/build/conda-skeleton.html).
+  * Declare their depenencies in `config.yaml` by adding them to the
+    `dependencies` list, with their name prefixes by `recipe/`.
+
+Here is an example of the entry for `pymssql`:
+```
+dependencies:
+  pymssql:
+    run:   [ cython, recipe/setuptools-git ]
+    build: [ cython, recipe/setuptools-git ]
+```
+
+Note that some EUPS packages have *undeclared* dependencies on conda
+packages as well (e.g., `pymssql` above depends on `cython`).
 
 #### Making packages relocatable
 
@@ -386,17 +390,10 @@ against them at the end-user's system (this is typically acute for
 `libssl.so`, where the system versions vary wildly compared to the Conda
 ones).
 
-That said, we did have to undertake two additional steps:
-
- * On OS X, we needed to inject the `-headerpad_max_install_names` option
-   (e.g., see
-   [here](http://blog.yimingliu.com/2008/01/23/building-dynamic-library-on-os-x/))
-   to the linker command line for `install_name_tool` to work reliably.
-   
- * On Linux, the version (v0.6) of [`patchelf`](https://github.com/NixOS/patchelf)
-   supplied by Conda is buggy (it corrupts `afw.so`). We've had to upgrade
-   to `patchelf` v0.8 to work around this. The conda recipe is in
-   `recipes/static/patchelf`.
+That said, we did have to undertake one additional step. On OS X, we needed
+to inject the `-headerpad_max_install_names` option (e.g., see
+[here](http://blog.yimingliu.com/2008/01/23/building-dynamic-library-on-os-x/))
+to the linker command line for `install_name_tool` to work reliably.
 
 Note that we don't need (or want) the paths to *our* libraries to be
 hardcoded into the libraries they depend on, as EUPS will handle this
@@ -464,7 +461,7 @@ names+versions is done as follows:
   * We also prepend an `lsst-` to it, except in cases where it would be
     silly (e.g., `lsst-lsst-distrib`).
   * Some products are given different names by fiat (see the
-    `eups_to_conda_map` variable in the code).
+    `eups_to_conda_map` variable in `config.yaml`).
 
 Converting versions is tough -- for the exact heuristics see the code in
 `eups_to_conda_version()` function in the code. That said, here's roughly
@@ -494,11 +491,16 @@ obs_test-10.1-4-g461b62d+49 -->  obs_test-0.10.1.4.0049-461b62d_1
 boost-1.55.0.lsst1-2+3      -->  lsst-boost-1.55.0.1.2.0003-1
 ```
 
-#### Tracking rebuilds
+#### Tracking built recipes
 
-`conda lsst` does its best to avoid rebuilding code it has already built. 
+`conda lsst` does its best to tell you which recipes have already been
+built, so that you don't have to rebuild them (such recipes have a
+.done file added to their directory, which the generated `rebuild.sh`
+script reads and honors).
+
 It does this by comparing the generated recipe to the recipes of already
-built packages (on channels that `conda lsst` knows about) that have the
+built packages (on channels that match the `our_channel_regex` pattern
+from `config.yaml`), that have the
 same name and version (but not the build number or build string).  If the
 recipes are the same (modulo build number/string; see below), the builds
 would result in identical results and therefore no new build is necessary.
@@ -507,7 +509,7 @@ A *rebuild* is when the same source code (i.e., having the same git SHA),
 including the dependencies and EUPS versions, is rebuilt using a different
 recipe (e.g., the recipe may have been modified to change a compiler flag,
 or add a new a conda-specific patch, etc.). This may happen when the
-recipe templates in `templates/` are changed. A rebuild will keep the
+recipe templates in `etc/templates` are changed. A rebuild will keep the
 same version, but the build number (and therefore the build string --
 by convention, build strings are some `<prefix>_<buildnum>` or just
 `<buildnum>`) will increment to reflect this is a rebuild (an example may be
@@ -541,8 +543,8 @@ anaconda.org hosted service, or a HTTP-accessible directory on a remote
 server to which you can SCP the files.
 
 `conda lsst upload` makes it easy to upload to the latter of the two. The
-defaults are set up so that just running `conda lsst upload` will upload to
-a subdirectory of `~mjuric/public_html/conda` at
+defaults in `config.yaml` are set up so that just running `conda lsst upload` 
+will upload to a subdirectory of `~mjuric/public_html/conda` at
 `lsst-dev.ncsa.illinois.edu`.
 
 For example, assuming I have `http://eupsforge.net/conda/dev` in my

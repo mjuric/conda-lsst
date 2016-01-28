@@ -1,0 +1,210 @@
+#
+# Where will I find the source code?
+# A mapping of upstream URL pattern to glob of product name.
+# These will be examined in order, and the first match will be used
+#
+git-upstreams:
+  'https://github.com/EUPSForge/%(product)s':
+    - gcc
+  'https://github.com/LSST/%(product)s':
+    - "*"
+
+#
+# Any SHA1 overrides to be applied to the build manifest
+# This is a list of mapping of 'product_name' -> 'SHA1-or-ref'
+#
+override_gitrev: {}
+
+#
+# Directory with patches
+#
+patch_dir: etc/patches
+
+#
+# A list of EUPS products that are to be replaced by internal (i.e., available
+# from Anaconda default repositories) products. See also `pin_versions` further
+# down.
+#
+# Example:
+# internal_products:
+#   python:
+#     build: "python 2.7.*"
+#     run:   "python 2.7.*"
+#   swig:
+#
+# More likely, you'll want to just list the products here, and pin their versions
+# (if needed) using the pin_versions list further below.
+#
+internal_products:
+  python:
+  swig:
+  libevent:
+  flask:
+  twisted:
+  scons:
+  numpy:
+  protobuf:
+  matplotlib:
+
+#
+# EUPS products we should ignore alltogether
+#
+skip_products:
+  - anaconda
+  - afwdata
+
+#
+# Prefix to add to all packages we'll buld
+#
+lsst_prefix: "lsst-"
+
+#
+# Explicit overrides for mapping of EUPS->conda product names
+#
+eups_to_conda_map:
+  legacy_configs: legacy_configs
+  lsst:           "%(lsst_prefix)seups-environment"
+  lsst_sims:      "%(lsst_prefix)ssims"
+  lsst_distrib:   "%(lsst_prefix)sdistrib"
+  lsst_apps:      "%(lsst_prefix)sapps"
+
+#
+# Inject system dependencies. These are per-package dependencies, which are assumed
+# to be delivered by the system (in this case conda), and not EUPS.
+#
+# map of eups_name -> "[conda/]<conda_name>, recipe/<conda_name>"
+#
+# See also `pin_versions` further below
+dependencies:
+  pymssql:
+    run:   [ cython, recipe/setuptools-git ]
+    build: [ cython, recipe/setuptools-git ]
+  palpy:
+    run:   [ cython, numpy ]
+    build: [ cython, numpy ]
+  sncosmo:
+    run:   [ recipe/astropy-helpers, astropy, cython, scipy ]
+    build: [ recipe/astropy-helpers, astropy, cython, scipy ]
+  sims_catalogs_generation:
+    run:   [ sqlalchemy ]
+    build: [ sqlalchemy ]
+  sims_photUtils:
+    run:   [ scipy, astropy ]
+    build: [ scipy, astropy ]
+  sims_utils:
+    run:   [ astropy ]
+    build: [ astropy ]
+  sims_maf:
+    run:   [ "ipython-notebook >=3.0" ]
+    build: [ "ipython-notebook >=3.0" ]
+  sims_operations:
+    run:   [ requests ]
+    build: [ requests ]
+  healpy:
+    run:   [ numpy ]
+    build: [ numpy ]
+  daf_persistence:
+    run:   [ pyyaml ]
+    build: [ pyyaml ]
+  daf_butlerutils:
+    run:   [ astropy ]
+    build: [ astropy ]
+  coadd_utils:
+    run:   [ numpy ]
+    build: [ numpy ]
+  meas_base:
+    run:   [ numpy ]
+    build: [ numpy ]
+  meas_algorithms:
+    run:   [ numpy ]
+    build: [ numpy ]
+  meas_deblender:
+    run:   [ numpy ]
+    build: [ numpy ]
+  meas_modelfit:
+    run:   [ numpy ]
+    build: [ numpy ]
+  meas_extensions_psfex:
+    run:   [ numpy ]
+    build: [ numpy ]
+  ip_diffim:
+    run:   [ numpy ]
+    build: [ numpy ]
+  ip_isr:
+    run:   [ numpy ]
+    build: [ numpy ]
+  coadd_chisquared:
+    run:   [ numpy ]
+    build: [ numpy ]
+  shapelet:
+    run:   [ numpy ]
+    build: [ numpy ]
+  "*":
+    run:
+      - recipe/eups >=1.5.8
+      - "libgcc >=4.8.5                # [not osx]"
+    build:
+      - recipe/eups >=1.5.8
+      - "gcc ==4.8.5                   # [not osx]"
+      - "patchelf ==0.8                # [not osx]"
+
+#
+# Pin a specific version of a package. This will be applied to all
+# packages in `dependencies` and `internal_products` that don't have a
+# version set. It's a convenient mechanism to pin specific versions of
+# conda packages used as dependencies.
+#
+pin_versions:
+  numpy:
+    build: "==1.9"
+    run:   ">=1.9"
+  python:
+    build: "2.7.*"
+    run:   "2.7.*"
+  swig:
+    build: "==3.0.2"
+    run:   "==3.0.2"
+
+#
+# which packages to build on which OS. The effect of this will be to add
+# if statements to rebuild.sh which will skip the builds for packages not
+# matching the current OS.
+#
+# The platform name must be equal to the output of `uname`
+#
+# Note: this has been commented out as patchelf is now packaged by Continuum
+#
+# skip-build:
+#   patchelf: [ Darwin ]
+
+#
+# Directory with additional recipes, to satisfy any injected dependencies.
+# These are most often conda packages for packages out of PyPI, typically
+# generated using conda-skeleton.
+#
+additional_recipes_dir: "etc/recipes"
+
+#
+# Directory where the recipe templates are.
+#
+template_dir: "etc/templates"
+
+# Output directory where the package specs will be generated (and the rebuild script)
+# DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
+output_dir: "recipes"
+
+#
+# A regexp matching the channels to which we'll upload. This is used to know which channels
+# to scan for already-built products.
+#
+our_channel_regex: '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.+?)/?$'
+
+#
+# The upload destination (server, dir on server, conda on server) for 'conda-lsst upload'
+# This should map to the directory accessible with the regex above
+#
+upload:
+  server:    'lsst-dev.ncsa.illinois.edu'
+  dir_base:  '/home/mjuric/public_html/conda'
+  conda:     '/ssd/mjuric/projects/conda-lsst/miniconda/bin/conda'
+

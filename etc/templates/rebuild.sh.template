@@ -6,6 +6,9 @@ set -e
 # change into script directory
 cd "$(dirname $BASH_SOURCE)"
 
+# the name of the current platform (Linux or Darwin)
+PLATFORM=$(uname)
+
 rebuild()
 {
 	# Conda name/version
@@ -18,12 +21,12 @@ rebuild()
 
 	pushd "$PACKAGE" > /dev/null
 
-	if [[ ! -f .done ]]; then
+	if [[ ! -f .done && ! -f .skip.$PLATFORM ]]; then
 		echo -n "  $PACKAGE"
 		if [[ "$PRODUCT" != None ]]; then
 			echo -n " (ver $VERSION)   [from $PRODUCT-$PRODUCT_VERSION] ... "
 		else
-			echo -n "   [from PyPi] ... "
+			echo -n " (ver $VERSION)   [from static recipe] ... "
 		fi
 
 		if conda build . > _build.log 2>&1; then

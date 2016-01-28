@@ -21,8 +21,8 @@ if [[ "$OSTYPE" == darwin* ]]; then
 	export ARCHFLAGS='-headerpad_max_install_names'
 fi
 
-## Check if the C++ compiler lives in the root conda environment directory
-if [[ $(dirname $(which ${CXX:-c++})) -ef "$SYS_PREFIX"/bin ]] ; then
+## Check if the C++ compiler lives in our environment directory
+if [[ $(dirname $(which ${CXX:-c++})) -ef "$CONDA_DEFAULT_ENV"/bin ]] ; then
 	#
 	# We're using conda-supplied compiler; make sure it can find
 	# its libraries
@@ -42,18 +42,25 @@ fi
 export LIBRARY_PATH="$LIBRARY_PATH:$CONDA_DEFAULT_ENV/lib"
 if [[ -f SConstruct ]]; then
 	#
-	# Subvert scons environment cleaning
+	# Subvert scons environment cleaning.
 	#
 	CXX=${CXX:-c++}
-	trap '{ rm -f "$CONDA_DEFAULT_ENV/bin/$CXX"; }' EXIT
+	export CXXSTUBPATH="$(mktemp -d -t XXXXXX)"
+
+	##trap '{ rm -f "$CXXSTUBPATH/$CXX"; rmdir "$CXXSTUBPATH"; }' EXIT
+	mkdir -p $CXXSTUBPATH
+	export PATH="$CXXSTUBPATH:$PATH"
+
+	CXXSTUB="$CXXSTUBPATH/$CXX"
 	CXXBIN=$(which $CXX)
-	cat > "$CONDA_DEFAULT_ENV/bin/$CXX" <<-EOT
+	cat > "$CXXSTUB" <<-EOT
 		#!/bin/bash
 		export LIBRARY_PATH="$LIBRARY_PATH"
 		exec "$CXXBIN" "\$@"
 	EOT
-	chmod +x "$CONDA_DEFAULT_ENV/bin/$CXX"
-	cat $CONDA_DEFAULT_ENV/bin/$CXX
+	chmod +x "$CXXSTUB"
+	echo "$CXXSTUB trampoline created, to ensure \$LIBRARY_PATH is preserved:"
+	cat "$CXXSTUB"
 fi
 
 PRODUCT=$(basename ups/*.table .table)
