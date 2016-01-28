@@ -40,7 +40,6 @@ internal_products:
   swig:
   flask:
   twisted:
-  scons:
   numpy:
   protobuf:
   matplotlib:
