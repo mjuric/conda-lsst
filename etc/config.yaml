@@ -139,6 +139,18 @@ dependencies:
   shapelet:
     run:   [ numpy ]
     build: [ numpy ]
+  mariadb:
+    run:   [ openssl ]
+    build: [ openssl ]
+  mariadbclient:
+    run:   [ openssl ]
+    build: [ openssl ]
+  mysqlproxy:
+    run:   [ openssl, "recipe/lsst-glib" ]
+    build: [ openssl, "recipe/lsst-glib" ]
+  protobuf:
+    run:   [ google-apputils ]
+    build: [ google-apputils ]
   "*":
     run:
       - recipe/eups >=1.5.8
