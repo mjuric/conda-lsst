@@ -106,9 +106,6 @@ dependencies:
   daf_persistence:
     run:   [ pyyaml ]
     build: [ pyyaml ]
-  daf_butlerutils:
-    run:   [ astropy ]
-    build: [ astropy ]
   coadd_utils:
     run:   [ numpy ]
     build: [ numpy ]
