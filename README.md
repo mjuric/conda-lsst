@@ -291,7 +291,7 @@ by filling out a template).
 
 Some products that are distributed with EUPS (either as full packages or
 stubs) already exist in default Conda repositories.  Examples include
-`numpy`, `swig`, `scons`, `twisted`, `protobuf`, etc.  We don't need to
+`numpy`, `swig`, `scons`, `twisted`, etc.  We don't need to
 create new recipes and build those packages.
 
 However, because of the way the current

@@ -41,7 +41,6 @@ internal_products:
   flask:
   twisted:
   numpy:
-  protobuf:
   matplotlib:
   pyyaml:
   sqlalchemy:
