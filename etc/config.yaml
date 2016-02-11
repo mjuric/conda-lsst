@@ -150,9 +150,11 @@ dependencies:
     build: [ google-apputils ]
   "*":
     run:
+      - "nomkl                         # [not osx]"
       - recipe/eups >=1.5.8
       - "libgcc >=4.8.5                # [not osx]"
     build:
+      - "nomkl                         # [not osx]"
       - recipe/eups >=1.5.8
       - "gcc ==4.8.5                   # [not osx]"
       - "patchelf ==0.8                # [not osx]"
