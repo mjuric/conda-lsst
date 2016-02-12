@@ -61,5 +61,7 @@ index ea80ae9..c489268 100644
 +            ;;
 +    esac
 +
++    ARGS+=('-DWITHOUT_SERVER=ON')
++
 +    cmake . "${ARGS[@]}"
  }
