@@ -102,8 +102,8 @@ dependencies:
     run:   [ requests ]
     build: [ requests ]
   healpy:
-    run:   [ numpy ]
-    build: [ numpy ]
+    run:   [ numpy, six ]
+    build: [ numpy, six ]
   daf_persistence:
     run:   [ pyyaml ]
     build: [ pyyaml ]
