@@ -52,6 +52,7 @@ internal_products:
 skip_products:
   - anaconda
   - afwdata
+  - testdata_subaru  # eupspkg'ing of LFS repos is broken
 
 #
 # Prefix to add to all packages we'll buld
