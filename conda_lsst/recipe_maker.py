@@ -84,11 +84,16 @@ class RecipeMaker(object):
 		# the lsst-product-configs package as well, as that's where the .table
 		# and .cfg files are.
 		if depends_on_internal:
-			product_configs = 'lsst-product-configs ==0.0.1'
+			# add lsst-product-configs to the build queue then fish out the
+			# version string
+			self.copy_additional_recipe('lsst-product-configs')
+			lpc_version = self.products['lsst-product-configs'].version
+			
+			# inject a dep on the specific version
+			product_configs = 'lsst-product-configs ==%s' % lpc_version
 			bdeps.append(product_configs)
 			rdeps.append(product_configs)
 
-			self.copy_additional_recipe('lsst-product-configs')
 
 		bplus, rplus = self.add_missing_deps(conda_name)	# manually add any missing dependencies
 		bdeps += bplus; rdeps += rplus;
