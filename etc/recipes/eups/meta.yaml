@@ -8,14 +8,14 @@
 
 package:
   name: eups
-  version: 1.5.9
+  version: 2.0.1
 
 build:
-  number: 7
-  string: 7
+  number: 0
+  string: 0
 
 source:
-  git_tag: 1.5.9
+  git_tag: 2.0.1
   git_url: https://github.com/RobertLuptonTheGood/eups
 
 requirements:
