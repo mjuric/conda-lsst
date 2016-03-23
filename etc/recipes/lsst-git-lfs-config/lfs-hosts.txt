@@ -1,0 +1,3 @@
+lsst-sqre-prod-git-lfs.s3-us-west-2.amazonaws.com
+git-lfs.lsst.codes
+s3.lsst.codes.helper
