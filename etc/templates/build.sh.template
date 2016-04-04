@@ -83,8 +83,7 @@ export
 # make debugging easier -- if the build breaks, chdir into the build directory and run
 # ./_build.sh <verb>
 echo '#!/bin/bash' > _build.sh
-export >> _build.sh
-echo "PRODUCT='$PRODUCT'" >> _build.sh
+declare -p | grep -v "declare -.*r " >> _build.sh	# Dump all (writable) shell variables (environmental and local)
 echo 'eupspkg PREFIX="$PREFIX" PRODUCT="$PRODUCT" VERSION="$EUPS_VERSION" FLAVOR=generic $@' >> _build.sh
 chmod +x _build.sh
 
