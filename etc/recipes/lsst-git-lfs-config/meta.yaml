@@ -1,0 +1,26 @@
+#
+# To build a Conda package, run conda build as:
+#
+#    conda build .
+#
+
+package:
+  name: lsst-git-lfs-config
+  version: 1.0.0
+
+build:
+  number: 0
+  string: 0
+
+requirements:
+  build:
+    - git
+    - git-lfs
+
+  run:
+    - git
+    - git-lfs
+
+about:
+  license: GPLv2
+  summary: Metapackage to setup credentials for anonymous access to LSST git-lfs repositories

@@ -24,12 +24,15 @@ This code is beta quality; it is expected to work on OS X and Linux.
 You need at least [Miniconda](conda.pydata.org/miniconda.html) with
 `conda-build`, `jinja2`, `requests`, and `sqlalchemy` packages installed, 
 as well as the `requests_file` python module (install
-with `pip install requests_file`). For your convenience, there's a script,
-[./bin/bootstrap.sh](bin/bootstrap.sh), that when run:
+with `pip install requests_file`). You will also need to build and
+install the `git-lfs` and `lsst-git-lfs-config` conda packages using
+the recipes found in `etc/recipes` directory. For your convenience,
+there's a script, [./bin/bootstrap.sh](bin/bootstrap.sh), that when run:
 ```bash
 bash ./bin/bootstrap.sh
 ```
-will install all of these for you into a subdirectory named `miniconda`.
+will install all of these for you. Miniconda will be installed into a
+subdirectory named `miniconda`.
 
 ## Generating Conda recipes, and building the packages
 

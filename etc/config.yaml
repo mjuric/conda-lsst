@@ -149,6 +149,11 @@ dependencies:
   protobuf:
     run:   [ google-apputils ]
     build: [ google-apputils ]
+# FIXME: Once https://github.com/conda/conda-build/pull/843 is merged,
+#        auto-installing of lsst-git-lfs-config should be taken out of bootstrap.sh
+#        and dependencies should be injected here as follows:
+#  sims_maps:
+#    build: [ "recipe/lsst-git-lfs-config" ]
   "*":
     run:
       - "nomkl                         # [not osx]"
