@@ -89,6 +89,9 @@ dependencies:
   sims_catalogs_generation:
     run:   [ sqlalchemy ]
     build: [ sqlalchemy ]
+  sims_skybrightness:
+    run:   [ sqlalchemy ]
+    build: [ sqlalchemy ]
   sims_photUtils:
     run:   [ scipy, astropy ]
     build: [ scipy, astropy ]
