@@ -142,10 +142,10 @@ dependencies:
     build: [ numpy ]
   mariadb:
     run:   [ openssl ]
-    build: [ openssl ]
+    build: [ cmake, openssl ]
   mariadbclient:
     run:   [ openssl ]
-    build: [ openssl ]
+    build: [ cmake, openssl ]
   mysqlproxy:
     run:   [ openssl, "recipe/lsst-glib" ]
     build: [ openssl, "recipe/lsst-glib" ]
