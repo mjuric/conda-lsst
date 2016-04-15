@@ -69,12 +69,12 @@ class RecipeDB(object):
 
 	_db = None		# The loaded database (dict of dicts)
 
-	def __init__(self, root_dir, platform):
+	def __init__(self, recipe_db_dir, platform):
 		self._db = {}
 		self.platform = platform
 
 		# open the database, ensure the tables are defined
-		dbfn = os.path.join(root_dir, 'pkginfo-cache', platform, 'cache-db.sqlite')
+		dbfn = os.path.join(recipe_db_dir, platform, 'cache-db.sqlite')
 		try:
 			os.makedirs(os.path.dirname(dbfn))
 		except OSError:

@@ -209,6 +209,11 @@ additional_recipes_dir: "etc/recipes"
 #
 template_dir: "etc/templates"
 
+#
+# Directory where the recipes hashes will be cached, to avoid unnecessary rebuilds
+#
+recipe_db_dir: recipe-db-cache
+
 # Output directory where the package specs will be generated (and the rebuild script)
 # DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
 output_dir: "recipes"

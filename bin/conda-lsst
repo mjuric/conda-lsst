@@ -142,7 +142,7 @@ if __name__ == "__main__":
 	args.root_dir = root_dir
 
 	# Load the built products cache database
-	db = RecipeDB(root_dir, config.platform)
+	db = RecipeDB(config.recipe_db_dir, config.platform)
 	if not args.no_cache_refresh:
 		db.reindex(config.channels)
 

@@ -18,6 +18,12 @@ class Config(object):
 	# string, mapped from config.output_dir
 	output_dir = None
 
+	# The directory where the database with the hashes of recipes is cached, so that packages
+	# don't have to be rebuilt if they already exist on some channel.
+	#
+	# string, mapped from config.recipe_db_dir
+	recipe_db_dir = None
+
 	#
 	# Directory with additional recipes, to satisfy any injected dependencies.
 	# These are most often conda packages for packages out of PyPI, typically
@@ -230,6 +236,7 @@ class Config(object):
 
 		# Set member variables
 		self.output_dir = expand_path(root_dir, config['output_dir'])
+		self.recipe_db_dir = expand_path(root_dir, config['recipe_db_dir'])
 		self.additional_recipes_dir = expand_path(root_dir, config['additional_recipes_dir'])
 		self.template_dir = expand_path(root_dir, config['template_dir'])
 		self.patch_dir = expand_path(root_dir, config['patch_dir'])
