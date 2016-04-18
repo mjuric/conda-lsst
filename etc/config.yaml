@@ -222,7 +222,7 @@ output_dir: "recipes"
 # A regexp matching the channels to which we'll upload. This is used to know which channels
 # to scan for already-built products.
 #
-our_channel_regex: '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/)(.+?)/?$'
+our_channel_regex: '^(?:https?://eupsforge.net/conda/|https?://research.majuric.org/conda/|https?://conda.lsst.mjuric.org/)(.+?)/?$'
 
 #
 # The upload destination (server, dir on server, conda on server) for 'conda-lsst upload'
@@ -232,4 +232,3 @@ upload:
   server:    'lsst-dev.ncsa.illinois.edu'
   dir_base:  '/home/mjuric/public_html/conda'
   conda:     '/ssd/mjuric/projects/conda-lsst/miniconda/bin/conda'
-
