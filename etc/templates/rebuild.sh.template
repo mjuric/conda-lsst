@@ -3,6 +3,14 @@
 # stop in case of trouble
 set -e
 
+# Re-execute within a docker container, if requested
+if [[ ! -z $REBUILD_RECIPES_IN_CONTAINER ]]; then
+	# export REBUILD_RECIPES_IN_CONTAINER="docker run --rm -it -v $HOME:$HOME --hostname "conda-centos5" centos5-host"
+	echo "Re-executing in container using: $REBUILD_RECIPES_IN_CONTAINER bash $BASH_SOURCE $@"
+	exec /usr/bin/env REBUILD_RECIPES_IN_CONTAINER= $REBUILD_RECIPES_IN_CONTAINER bash $BASH_SOURCE "$@"
+	exit -1
+fi
+
 # change into script directory
 cd "$(dirname $BASH_SOURCE)"
 

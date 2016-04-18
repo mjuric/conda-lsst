@@ -34,6 +34,18 @@ bash ./bin/bootstrap.sh
 will install all of these for you. Miniconda will be installed into a
 subdirectory named `miniconda`.
 
+### Docker containerized builds (Linux)
+
+If you have docker, and want `conda` package builds to happein within a
+CentOS 5 docker container (recommended, for maximum binary compatibility),
+run:
+```
+cd docker
+make
+```
+to create the necessary docker image. Don't forget to follow the
+instructions on adding `REBUILD_RECIPES_IN_CONTAINER` to your `.bashrc`
+
 ## Generating Conda recipes, and building the packages
 
 To generate all packages and upload them to a remote service, run someting like the following:
