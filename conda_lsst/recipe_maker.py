@@ -44,7 +44,7 @@ class RecipeMaker(object):
 		patches = '  patches:' + create_yaml_list(patchlist)
 		return patches
 
-	def gen_conda_package(self, product, sha, eups_version, giturl, eups_deps, eups_tags):
+	def gen_conda_package(self, product, sha, eups_version, giturl, eups_deps):
 		# What do we call this product in conda?
 		conda_name = self.config.conda_name_for(product)
 
@@ -119,7 +119,7 @@ class RecipeMaker(object):
 		fill_out_template(os.path.join(dir, 'build.sh'), os.path.join(template_dir, 'build.sh.template'),
 			setups = setups,
 			eups_version = eups_version,
-			eups_tags = ' '.join(eups_tags + self.config.global_eups_tags)
+			eups_tags = ' '.join(self.config.global_eups_tags)
 		)
 
 		# pre-link.sh (to add the global tags)
@@ -258,7 +258,7 @@ class RecipeMaker(object):
 
 		return deps_['build'], deps_['run']
 
-	def generate(self, manifest, tags):
+	def generate(self, manifest):
 		# Generate conda package files and build driver script
 		shutil.rmtree(self.config.output_dir, ignore_errors=True)
 		os.makedirs(self.config.output_dir)
@@ -273,7 +273,7 @@ class RecipeMaker(object):
 			# Where is the source?
 			giturl = self.config.get_giturl(product)
 
-			self.gen_conda_package(product, sha, version, giturl, deps, tags)
+			self.gen_conda_package(product, sha, version, giturl, deps)
 		print "done."
 
 		#

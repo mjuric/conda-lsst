@@ -23,7 +23,7 @@ def main_make_recipes(config, args):
 	manifest, tags = build_manifest_for_products(args.products, args.manifest)
 
 	generator = RecipeMaker(config, args.root_dir, db)
-	generator.generate(manifest, tags)
+	generator.generate(manifest)
 
 	if args.build:
 		print "calling %s/rebuild.sh to build:" % (config.output_dir)
