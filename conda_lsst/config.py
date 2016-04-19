@@ -11,6 +11,19 @@ def expand_path(root, fragment):
 		return os.path.join(root, fragment)
 	return fragment
 
+def merge(config, default):
+	#
+	# Merge the 'default' dict into 'config'
+	# based on: http://stackoverflow.com/questions/823196/yaml-merge-in-python
+	#
+	if isinstance(config, dict) and isinstance(default, dict):
+		for k, v in default.iteritems():
+			if k not in config:
+				config[k] = v
+			else:
+				config[k] = merge(config[k], v)
+	return config
+
 class Config(object):
 	# Output directory where the package specs will be generated (as well as the rebuild script)
 	# DANGER, DANGER: Be careful what you set this to -- it will be 'rm -rf'-ed !!!
@@ -155,11 +168,18 @@ class Config(object):
 		from itertools import chain
 		return chain.from_iterable(matching)
 
-	def __init__(self, root_dir, fn):
+	def __init__(self, root_dir, fns):
 		# Load the configuration file (YAML), do any necessary parsing
 		# and variable substitutions, and return the result
-		with open(expand_path(root_dir, fn)) as fp:
-			config = yaml.load(fp)
+
+		# Load and merge all configuration files
+		config = {}
+		for fn in fns:
+			try:
+				with open(expand_path(root_dir, fn)) as fp:
+					merge(config, yaml.load(fp))
+			except IOError:
+				pass
 
 		# Expand eups->conda map
 		for eups_name, conda_name in config['eups_to_conda_map'].items():
