@@ -26,6 +26,11 @@ if [[ "$OSTYPE" == darwin* ]]; then
 #	# padding in the header for the install_name_tool to work
 #	# (sconsUtils adds the contents of this variable to CCFLAGS and LINKFLAGS)
 #	export ARCHFLAGS='-headerpad_max_install_names'
+
+	if [[ "$(ld -v 2>&1 | grep -Eow 'PROJECT:.*')" == "PROJECT:ld64-264.3.101" ]]; then
+		echo "You're running XCode 7.3, with a broken linker (version ld64-264.3.101): implementing a workaround for the @rpath expansion bug".
+		XCODE_73_RPATH_BUG=1
+	fi
 fi
 
 # Add Anaconda's library path to DYLD_LIBRARY_PATH, to make the libraries visible
@@ -64,6 +69,12 @@ export
 cat > _build.sh <<-EOT
 	#!/bin/bash
 	$(export)
+
+	# XCODE_73_RPATH_BUG workaround?
+	if [[ "$XCODE_73_RPATH_BUG" == 1 ]]; then
+	    trap '{ rm -f @rpath; rm -rf "$PREFIX/@rpath"; }' EXIT
+	    ln -fs "\$CONDA_DEFAULT_ENV/lib" @rpath
+	fi
 
 	PRODUCT="$PRODUCT"
 	EUPS_VERSION="$EUPS_VERSION"
