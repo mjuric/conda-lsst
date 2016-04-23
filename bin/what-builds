@@ -35,5 +35,5 @@ fi
 	fi
 
 	# Find & display the tags
-	git log --reverse --decorate=full --oneline -- $1.txt | grep -Eow "refs/tags/b[0-9]+" | cut -d/ -f 3 | sed -e "s|^|$1 |" - 
+	git log --reverse --decorate=full --oneline -- $1.txt | grep -Eow "refs/tags/b[0-9]+" | cut -d/ -f 3 | sed -e "s|^|$1 |"
 )
