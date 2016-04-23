@@ -1,0 +1,17 @@
+diff --git python/lsst/sconsUtils/state.py python/lsst/sconsUtils/state.py
+index dab2676..93caa0e 100644
+--- python/lsst/sconsUtils/state.py
++++ python/lsst/sconsUtils/state.py
+@@ -326,6 +326,12 @@ def _configureCommon():
+         if not env.GetOption("no_progress"):
+             log.info("CC is %s version %s" % (env.whichCc, env.ccVersion))
+         conf.Finish()
++
++    # Add header expansion flags for OS X install_name
++    if env['PLATFORM'] == 'darwin':
++        if not re.search(r"-headerpad_max_install_names", str(env['LINKFLAGS'])):
++            env.Append(LINKFLAGS=["-Wl,-headerpad_max_install_names"])
++
+     #
+     # Compiler flags, including CCFLAGS for C and C++ and CXXFLAGS for C++ only
+     #
