@@ -201,10 +201,14 @@ class RecipeDB(object):
 
 		try:
 			repodata_ = self.get_repodata(channel.urlbase)
-		except HTTPError:
+		except HTTPError as e:
 			# Local channels may not exist if nothing has been built with conda-build yet
 			if channel.urlbase.startswith('file://'):
 				print "  not found. skipping."
+				return
+			elif e.response.status_code == 404:
+				# Assume this is a new, empty, channel
+				print "  appears uninitialized. skipping."
 				return
 			else:
 				raise
