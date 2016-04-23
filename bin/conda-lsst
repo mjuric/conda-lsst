@@ -52,7 +52,7 @@ def main_upload_ssh(config, args):
 		except IndexError:
 			print >>sys.stderr, "error: there are no channels in your ~/.condarc that match the regular expression:"
 			print >>sys.stderr, ""
-			print >>sys.stderr, "    " + our_channel_regex
+			print >>sys.stderr, "    " + config.our_channel_regex
 			print >>sys.stderr, ""
 			print >>sys.stderr, "conda will upload to the first channel in ~/.condarc matching the above regex."
 			print >>sys.stderr, "Please add at least one using:"
