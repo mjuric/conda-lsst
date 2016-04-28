@@ -43,8 +43,15 @@ run:
 cd docker
 make
 ```
-to create the necessary docker image. Don't forget to follow the
-instructions on adding `REBUILD_RECIPES_IN_CONTAINER` to your `.bashrc`
+to create the necessary docker image.
+
+Once `make` is run, it will print out the instructions on how to set
+the `REBUILD_RECIPES_IN_CONTAINER` environmental variable and make the new
+container known to `rebuild.sh`.
+
+The `rebuild.sh` script that `conda lsst make-recipes` checks for the contents
+of `$REBUILD_RECIPES_IN_CONTAINED` variable and uses it as a driver for `conda build`
+(if present). It's best to export this variable from your `.bashrc`.
 
 ## Generating Conda recipes, and building the packages
 
