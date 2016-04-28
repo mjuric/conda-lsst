@@ -42,6 +42,11 @@ rebuild()
 			echo 'OK'
 		else
 			echo 'ERROR'
+			echo 'Last 20 lines from the log file:'
+			echo "========================================================================"
+			tail -n 20 _build.log
+			echo "========================================================================"
+			echo 'The complete build log is in $PWD/_build.log'
 			exit -1
 		fi
 	fi
