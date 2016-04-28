@@ -46,7 +46,7 @@ rebuild()
 			echo "========================================================================"
 			tail -n 20 _build.log
 			echo "========================================================================"
-			echo 'The complete build log is in $PWD/_build.log'
+			echo "The complete build log is in $PWD/_build.log"
 			exit -1
 		fi
 	fi
