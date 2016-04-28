@@ -72,6 +72,29 @@ Failed builds can be debugged by changing into the source directory (usually
 .../conda-bld/work) and running `./_build.sh <eupspkg_verb>` where the verb
 is typically `build`.
 
+The first parameter passed to `conda lsst make-recipes` is an [`lsst-build`
+generated manifest](https://github.com/lsst/lsst_build). You may be familar
+with these as `manifest.txt` files that `lsstsw` generates in its `build` 
+directory. For "official" builds, they're also stored in the 
+[canonical versiondb](https://github.com/lsst/versiondb/tree/master/manifests)
+by the lsstsw's `rebuild` script when run on `lsst-dev` as `lsstsw`.
+
+To find out which build manifests (as stored in the [canonical versiondb](https://github.com/lsst/versiondb) 
+contain a particular product, use the `what-builds` utility. For example:
+```
+$ what-builds lsst_apps | tail
+lsst_apps b2005
+lsst_apps b2007
+lsst_apps b2010
+lsst_apps b2012
+lsst_apps b2014
+lsst_apps b2015
+lsst_apps b2017
+lsst_apps b2018
+lsst_apps b2020
+lsst_apps b2021
+```
+
 ## Installing and Running Conda-delivered LSST softwre
 
 See [this gist](https://gist.github.com/mjuric/1e097f2781bc503954c6) or the
@@ -185,14 +208,26 @@ where they are kept. That lets you do things such as:
 conda lsst make-recipes build:b1497 wcslib
 ```
 
-#### Tuning the recipe generation: config.yaml
+#### Tuning the recipe generation: config.yaml and ~/.condalsstrc
 
 Recipe generation is controlled by entries in [`config.yaml`](config.yaml) file.
 They control virtually all aspects of recipe generation, from injecting
 missing system dependencies, to defining the output directories and
-default destination servers to upload to.
+default destination servers to upload to. Refer to comments in [`config.yaml`](config.yaml) for more.
 
-Refer to the comments in [`config.yaml`](config.yaml) for more.
+##### Local overrides: ~/.condalsstrc
+
+The settings from `condig.yaml` can be overridden by keys in `~/condalsstrc`. For
+example, here's what I (mjuric) have in my `~/condalsstrc`:
+```
+$ cat ~/.condalsstrc
+our_channel_regex: '^(?:https?://conda.lsst.mjuric.org/)(.+?)/?$'
+
+upload:
+  server:    'centos@conda.lsst.mjuric.org'
+  dir_base:  '/var/www/html'
+  conda:     'conda'
+```
 
 #### Conda-packaged EUPS
 
