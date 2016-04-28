@@ -69,12 +69,12 @@ class RecipeDB(object):
 
 	_db = None		# The loaded database (dict of dicts)
 
-	def __init__(self, root_dir, platform):
+	def __init__(self, recipe_db_dir, platform):
 		self._db = {}
 		self.platform = platform
 
 		# open the database, ensure the tables are defined
-		dbfn = os.path.join(root_dir, 'pkginfo-cache', platform, 'cache-db.sqlite')
+		dbfn = os.path.join(recipe_db_dir, platform, 'cache-db.sqlite')
 		try:
 			os.makedirs(os.path.dirname(dbfn))
 		except OSError:
@@ -201,10 +201,14 @@ class RecipeDB(object):
 
 		try:
 			repodata_ = self.get_repodata(channel.urlbase)
-		except HTTPError:
+		except HTTPError as e:
 			# Local channels may not exist if nothing has been built with conda-build yet
 			if channel.urlbase.startswith('file://'):
 				print "  not found. skipping."
+				return
+			elif e.response.status_code == 404:
+				# Assume this is a new, empty, channel
+				print "  appears uninitialized. skipping."
 				return
 			else:
 				raise

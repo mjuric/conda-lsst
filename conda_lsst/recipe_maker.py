@@ -44,7 +44,7 @@ class RecipeMaker(object):
 		patches = '  patches:' + create_yaml_list(patchlist)
 		return patches
 
-	def gen_conda_package(self, product, sha, eups_version, giturl, eups_deps, eups_tags):
+	def gen_conda_package(self, product, sha, eups_version, giturl, eups_deps):
 		# What do we call this product in conda?
 		conda_name = self.config.conda_name_for(product)
 
@@ -119,7 +119,7 @@ class RecipeMaker(object):
 		fill_out_template(os.path.join(dir, 'build.sh'), os.path.join(template_dir, 'build.sh.template'),
 			setups = setups,
 			eups_version = eups_version,
-			eups_tags = ' '.join(eups_tags + self.config.global_eups_tags)
+			eups_tags = ' '.join(self.config.global_eups_tags)
 		)
 
 		# pre-link.sh (to add the global tags)
@@ -230,8 +230,14 @@ class RecipeMaker(object):
 						break
 				else:
 					is_built = False
-			except subprocess.CalledProcessError:
-				is_built = False
+			except subprocess.CalledProcessError as e:
+				# it's OK to fail on an uninitialized conda-bld/<platform> directory.
+				# TODO: the way we test for this is pretty ugly, but I can't think of a better way yet
+				j = json.loads(e.output)
+				if j[u'error_type'] == "RuntimeError" and j[u'error'].startswith("Could not find URL: file:///"):
+					is_built = False
+				else:
+					raise
 
 			self.products[name] = ProductInfo(name, version, build_string, buildnum, None, None, is_built, False)
 
@@ -258,7 +264,7 @@ class RecipeMaker(object):
 
 		return deps_['build'], deps_['run']
 
-	def generate(self, manifest, tags):
+	def generate(self, manifest):
 		# Generate conda package files and build driver script
 		shutil.rmtree(self.config.output_dir, ignore_errors=True)
 		os.makedirs(self.config.output_dir)
@@ -273,7 +279,7 @@ class RecipeMaker(object):
 			# Where is the source?
 			giturl = self.config.get_giturl(product)
 
-			self.gen_conda_package(product, sha, version, giturl, deps, tags)
+			self.gen_conda_package(product, sha, version, giturl, deps)
 		print "done."
 
 		#

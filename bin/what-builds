@@ -1,0 +1,39 @@
+#!/bin/bash
+
+if [[ -z "$1" ]]; then
+	cat <<-EOF
+	Find build tags that build a given product.
+	
+	    usage: $0 <product>
+	
+	List all build tags from versiondb (https://github.com/lsst/versiondb) where
+	the <product> is included in the build manifest. In other words,
+	running \`conda lsst make-recipes build:bNNNN <product>\` will succeed
+	for if the tag bNNNN exists in the output.
+EOF
+	exit -1
+fi
+
+(
+	# switch to conda-lsst directory
+	cd $(dirname $BASH_SOURCE)/..
+
+	# Clone (or pull) the versiondb repo
+	if [[ ! -d versiondb ]]; then
+		git clone --quiet https://github.com/lsst/versiondb
+		cd versiondb
+	else
+		cd versiondb
+		git pull --quiet
+	fi
+
+	# verify the product exists
+	cd ver_db
+	if [[ ! -f $1.txt ]]; then
+		echo $1 product does not exist in versiondb.
+		exit -1
+	fi
+
+	# Find & display the tags
+	git log --reverse --decorate=full --oneline -- $1.txt | grep -Eow "refs/tags/b[0-9]+" | cut -d/ -f 3 | sed -e "s|^|$1 |"
+)

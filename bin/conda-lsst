@@ -23,7 +23,7 @@ def main_make_recipes(config, args):
 	manifest, tags = build_manifest_for_products(args.products, args.manifest)
 
 	generator = RecipeMaker(config, args.root_dir, db)
-	generator.generate(manifest, tags)
+	generator.generate(manifest)
 
 	if args.build:
 		print "calling %s/rebuild.sh to build:" % (config.output_dir)
@@ -52,7 +52,7 @@ def main_upload_ssh(config, args):
 		except IndexError:
 			print >>sys.stderr, "error: there are no channels in your ~/.condarc that match the regular expression:"
 			print >>sys.stderr, ""
-			print >>sys.stderr, "    " + our_channel_regex
+			print >>sys.stderr, "    " + config.our_channel_regex
 			print >>sys.stderr, ""
 			print >>sys.stderr, "conda will upload to the first channel in ~/.condarc matching the above regex."
 			print >>sys.stderr, "Please add at least one using:"
@@ -102,7 +102,7 @@ def main_tools_hash(config, args):
 
 if __name__ == "__main__":
 	# Load config file
-	config = Config(root_dir, 'etc/config.yaml')
+	config = Config(root_dir, [os.path.expanduser('~/.condalsstrc'), 'etc/config.yaml'])
 
 	import argparse
 	tl_parser = parser = argparse.ArgumentParser()
@@ -142,7 +142,7 @@ if __name__ == "__main__":
 	args.root_dir = root_dir
 
 	# Load the built products cache database
-	db = RecipeDB(root_dir, config.platform)
+	db = RecipeDB(config.recipe_db_dir, config.platform)
 	if not args.no_cache_refresh:
 		db.reindex(config.channels)
 
