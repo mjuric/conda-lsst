@@ -234,7 +234,7 @@ class RecipeMaker(object):
 				# it's OK to fail on an uninitialized conda-bld/<platform> directory.
 				# TODO: the way we test for this is pretty ugly, but I can't think of a better way yet
 				j = json.loads(e.output)
-				if j[u'error_type'] == "RuntimeError" and j[u'error'].startswith("Could not find URL: file:///"):
+				if (j[u'error_type'] == 'NoPackagesFound') or (j[u'error_type'] == "RuntimeError" and j[u'error'].startswith("Could not find URL: file:///")):
 					is_built = False
 				else:
 					raise
