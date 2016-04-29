@@ -6,7 +6,7 @@
 
 package:
   name: lsst-product-configs
-  version: &package_version 1.0.1925
+  version: &package_version 1.0.2022
 
 build:
   number: 0

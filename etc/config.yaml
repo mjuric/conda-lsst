@@ -41,6 +41,7 @@ internal_products:
   flask:
   twisted:
   numpy:
+  scipy:
   matplotlib:
   pyyaml:
   sqlalchemy:
@@ -184,6 +185,9 @@ pin_versions:
   swig:
     build: "==3.0.2"
     run:   "==3.0.2"
+  scipy:
+    build: "0.16.*"
+    run:   ">=0.16"
 
 #
 # which packages to build on which OS. The effect of this will be to add
