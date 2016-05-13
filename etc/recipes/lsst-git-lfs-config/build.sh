@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -e -x
 
 #
 # Copy the list of LSST's LFS hosts to a well known location.
@@ -8,4 +8,4 @@
 #
 
 mkdir -p "$PREFIX/etc"
-cp lfs-hosts.txt "$PREFIX/etc/lsst-git-lfs-hosts.txt"
+cp "${RECIPE_DIR}/lfs-hosts.txt" "$PREFIX/etc/lsst-git-lfs-hosts.txt"
