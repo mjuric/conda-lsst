@@ -46,6 +46,7 @@ internal_products:
   pyyaml:
   sqlalchemy:
   requests:
+  astropy:
 
 #
 # EUPS products we should ignore alltogether
