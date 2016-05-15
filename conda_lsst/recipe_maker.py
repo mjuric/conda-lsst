@@ -66,34 +66,20 @@ class RecipeMaker(object):
 		# Now start tracking runtime vs build depencendies separately
 		# FIXME: We should do this from the start, but EUPS still isn't tracking the two separately
 		bdeps, rdeps = [], []
-		depends_on_internal = False
-		for prod in eups_deps:							# transform to Anaconda product names
+		for prod in eups_deps:
+			# Add the dependency
 			dep_conda_name = self.config.conda_name_for(prod)
-			internals = self.config.internal_products.get(prod, None)
-			depends_on_internal |= prod in self.config.internal_products
+			bdeps.append(dep_conda_name)
+			rdeps.append(dep_conda_name)
 
-			if internals is not None:
-				bdeps.append(internals.get('build', dep_conda_name))
-				rdeps.append(internals.get('run',   dep_conda_name))
-				
-			else:
-				bdeps.append(dep_conda_name)
-				rdeps.append(dep_conda_name)
-
-		# If we depend on one of the internal packages, make sure we depend on
-		# the lsst-product-configs package as well, as that's where the .table
-		# and .cfg files are.
-		if depends_on_internal:
-			# add lsst-product-configs to the build queue then fish out the
-			# version string
-			self.copy_additional_recipe('lsst-product-configs')
-			lpc_version = self.products['lsst-product-configs'].version
-			
-			# inject a dep on the specific version
-			product_configs = 'lsst-product-configs ==%s' % lpc_version
-			bdeps.append(product_configs)
-			rdeps.append(product_configs)
-
+		# If this is an internal product, also add the conda package as a dependency
+		try:
+			internals = self.config.internal_products[product]
+		except KeyError:
+			pass
+		else:
+			bdeps.append(internals['build'])
+			rdeps.append(internals['run'])
 
 		bplus, rplus = self.add_missing_deps(conda_name)	# manually add any missing dependencies
 		bdeps += bplus; rdeps += rplus;
@@ -116,7 +102,8 @@ class RecipeMaker(object):
 
 		template_dir = self.config.template_dir
 
-		fill_out_template(os.path.join(dir, 'build.sh'), os.path.join(template_dir, 'build.sh.template'),
+		build_template = 'build.sh.template' if product not in self.config.internal_products else 'build-internal.sh.template'
+		fill_out_template(os.path.join(dir, 'build.sh'), os.path.join(template_dir, build_template),
 			setups = setups,
 			eups_version = eups_version,
 			eups_tags = ' '.join(self.config.global_eups_tags)
@@ -270,7 +257,6 @@ class RecipeMaker(object):
 		os.makedirs(self.config.output_dir)
 		print "generating recipes: "
 		for (product, sha, version, deps) in manifest.itervalues():
-			if product in self.config.internal_products: continue
 			if product in self.config.skip_products: continue
 
 			# override gitrevs (these are temporary hacks/fixes; they should go away when those branches are merged)

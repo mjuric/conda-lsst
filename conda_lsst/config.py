@@ -148,7 +148,7 @@ class Config(object):
 		# don't prefix internal (aka system) products that don't
 		# have explicit mappings to their conda names
 		if product in self.internal_products:
-			return transformed_name
+			transformed_name = transformed_name + "-eups-configs"
 
 		return self.lsst_prefix + transformed_name
 
@@ -189,11 +189,20 @@ class Config(object):
 		self.eups_to_conda_map = config['eups_to_conda_map']
 		self.lsst_prefix = config['lsst_prefix']
 
-		pv = config['pin_versions']
+		# Internal products. A dict of eups_name -> { 'build': conda_meta_spec, 'run': conda_meta_spec }
+		# where conda_meta_spec is the conda package name or an expression with version
+		# that could go into the meta.yaml build: or run: dependency clause.
+		#
+		# For convenience, the 'build' and 'run' parts may be implicit in config.yaml file;
+		# make them explicit here, so the downstream code is uniform.
+		self.internal_products = config['internal_products']
+		for name, meta in self.internal_products.items():
+			if meta is None:
+				self.internal_products[name] = { 'run': name, 'build': name }
 
 		# A mapping from LSST eups packages that will be replaced by conda equivalents
 		# Apply pinned versions (if any) to entries that don't have a version specified
-		self.internal_products = config['internal_products']
+		pv = config['pin_versions']
 		for name, meta in self.internal_products.items():
 			if name not in pv:
 				continue

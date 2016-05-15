@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# The conda-build build script to build stubs containing ups/* files
+# for packages that conda already delivers internally.
+#
+# The "build" script just copies the ups/ directory and declares
+# the product in question.
+#
+
+# Find the true source root: conda tries to be helpful and
+# changes into the first non-empty directory given a github repository; 
+export SRC_DIR=$(git rev-parse --show-toplevel)
+cd $SRC_DIR
+
+# The "build" script just copies the ups/ directory and declares the product
+PRODUCT=$(basename ups/*.table .table)
+EUPS_VERSION="system"
+#EUPS_VERSION="system_%(eups_version)s"
+PREFIX="$PREFIX/opt/lsst/$PRODUCT"
+
+# initialize EUPS
+source eups-setups.sh
+
+# copy to destination
+mkdir -p "$PREFIX"
+cp -a ups "$PREFIX"
+
+# declare everything with a table file
+for table in ups/*.table; do
+	PRODUCT=$(basename $table .table)
+	eups declare -t current -r "$PREFIX" "$PRODUCT" "$EUPS_VERSION"
+done
+
+# Add EUPS tags.  The tags will be stored in a file in the product's ups
+# dir; it will be merged by the pre-link.sh script with the EUPS database
+# when the package is installed
+TAGFILE="$EUPS_PATH/ups_db/global.tags"
+for TAG in %(eups_tags)s; do
+	# FIXME: This should be handled by the post-link/pre-delete script !!!
+	test -f "$TAGFILE" && echo -n " " >> "$TAGFILE"
+	echo -n "$TAG" >> "$TAGFILE"
+
+	eups declare -t $TAG "$PRODUCT" "$EUPS_VERSION"
+done
+mv "$TAGFILE" "$PREFIX/ups"
+
+# compile all .cfg files so they don't get picked up as new by conda when
+# building other packages
+if ls "$PREFIX/ups"/*.cfg 1> /dev/null 2>&1; then
+	"$PYTHON" -m py_compile "$PREFIX/ups"/*.cfg
+fi
+
+# show that it worked
+eups list
