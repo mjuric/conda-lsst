@@ -72,6 +72,16 @@ class RecipeMaker(object):
 			bdeps.append(dep_conda_name)
 			rdeps.append(dep_conda_name)
 
+			# If the dependency is an internal product, add the internal product
+			# to the build dependencies as well. This works around the problem where
+			# e.g., lsst-afw depends on lsst-numpy-eups-config which depends on
+			# numpy ==1.9 in the build section, but numpy >=1.9 in the run. If lsst-afw
+			# didn't depend on numpy ==1.9 directly in its build section, then numpy
+			# would've been pulled in via lsst-numpy-eups-config's *run* section (and
+			# thus may be built against a newer numpy).
+			if prod in self.config.internal_products:
+				bdeps.append(self.config.internal_products[prod]['build'])
+
 		# If this is an internal product, also add the conda package as a dependency
 		try:
 			internals = self.config.internal_products[product]

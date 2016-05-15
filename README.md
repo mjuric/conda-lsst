@@ -348,39 +348,31 @@ by filling out a template).
 
 Some products that are distributed with EUPS (either as full packages or
 stubs) already exist in default Conda repositories.  Examples include
-`numpy`, `swig`, `scons`, `twisted`, etc.  We don't need to
-create new recipes and build those packages.
+`numpy`, `swig`, `scons`, `twisted`, etc.  We don't want to unnecessarily
+duplicate functionality by building our own versions.
 
-However, because of the way the current
+However, we can't just skip these. Because of the way the current
 [`sconsUtils`](http://github.com/lsst/sconsUtils) build system works, those
 packages still need to be declared to EUPS and their `.cfg` files need to be
-present otherwise their dependencies won't know how to build themselves.
+present. Otherwise their dependents won't know how to build themselves.
 
-The solution to this problem has two parts:
- 
- * Firsly, the `.table` and `.cfg` files of all such packages have been 
-   collected in one [legacy_configs](http://github.com/mjuric/legacy_configs)
-   repository. A conda package for this repository is built by a recipe in
-   `etc/recipes/lsst-product-configs`, and declares all the products
-   in question to EUPS.
+The solution to this problem is not to perform the full build of packages
+that Conda can supply to us, but to only copy the contents of their `ups/`
+directories and declare them to EUPS.  To make it clear these are packages
+that only carry the EUPS config files, we name them
+`lsst-PRODUCTNAME-eups-configs`.  Secondly, whenever a product depends on
+one of these packages, we inject the dependency on both the conda package,
+as well as the relevant `-eups-configs` package.  For example, the `afw`
+EUPS product depends on `numpy` and therefore the conda package `lsst-afw`
+will depend on `lsst-numpy-eups-configs` and `numpy`.
 
- * Secondly, if a product depends on any of these packages, we also add a
-   dependency on `lsst-product-configs`. Therefore, a recipe for a product
-   that (for example) requires `protobuf` will pull in `lsst-product-configs`
-   when it's build with `conda build` or installed with `conda install`
+The products to be considered internal (provided by conda) should be listed
+by hand in the `internal_products` variable in `config.yaml`.
 
-Caveats:
-
- * the `.table` and `.cfg` files have been collected by hand; any time they
-   change, the `legacy_configs` repository needs to be updated. A better way
-   to do this would be to extract these files on the fly, from the content
-   of the relevant commit of their individual parent product's git repos.
-   
- * these products are listed by hand in the `internal_products` variable in
-   `config.yaml`.
-
-This is all a workaround; the long-term solution is not to depend on `.cfg`
-files for builds and instead use something more standard, like `pkg-config`.
+Note that this is really a workaround; the long-term solution is not to
+depend on `.cfg` files for builds and instead use something more standard,
+like `pkg-config`, as well as make it possible to run conda binaries w/o
+EUPS.
 
 #### Skipped products
 
