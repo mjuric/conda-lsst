@@ -1,0 +1,341 @@
+diff --git patches/lsst_prefix_fftw.patch.template patches/lsst_prefix_fftw.patch.template
+new file mode 100644
+index 0000000..0439c7e
+--- /dev/null
++++ patches/lsst_prefix_fftw.patch.template
+@@ -0,0 +1,48 @@
++diff -ur fftw-3.3.4/api/fftw3.h fftw-3.3.4/api/fftw3.h
++--- fftw-3.3.4/api/fftw3.h	2014-03-04 10:41:03.000000000 -0800
+++++ fftw-3.3.4/api/fftw3.h	2016-04-20 01:37:22.000000000 -0700
++@@ -62,7 +62,7 @@
++ #  define FFTW_DEFINE_COMPLEX(R, C) typedef R C[2]
++ #endif
++ 
++-#define FFTW_CONCAT(prefix, name) prefix ## name
+++#define FFTW_CONCAT(prefix, name) $FFTW_FUNC_PREFIX ## prefix ## name
++ #define FFTW_MANGLE_DOUBLE(name) FFTW_CONCAT(fftw_, name)
++ #define FFTW_MANGLE_FLOAT(name) FFTW_CONCAT(fftwf_, name)
++ #define FFTW_MANGLE_LONG_DOUBLE(name) FFTW_CONCAT(fftwl_, name)
++diff -ur fftw-3.3.4/kernel/ifftw.h fftw-3.3.4/kernel/ifftw.h
++--- fftw-3.3.4/kernel/ifftw.h	2014-03-04 10:41:03.000000000 -0800
+++++ fftw-3.3.4/kernel/ifftw.h	2016-04-20 01:36:58.000000000 -0700
++@@ -59,7 +59,7 @@
++ #endif
++ 
++ /* determine precision and name-mangling scheme */
++-#define CONCAT(prefix, name) prefix ## name
+++#define CONCAT(prefix, name) $FFTW_FUNC_PREFIX ## prefix ## name
++ #if defined(FFTW_SINGLE)
++   typedef float R;
++ # define X(name) CONCAT(fftwf_, name)
++diff -ur fftw-3.3.4/tests/fftw-bench.h fftw-3.3.4/tests/fftw-bench.h
++--- fftw-3.3.4/tests/fftw-bench.h	2013-03-18 05:10:45.000000000 -0700
+++++ fftw-3.3.4/tests/fftw-bench.h	2016-04-20 01:38:40.000000000 -0700
++@@ -4,7 +4,7 @@
++ #include "bench-user.h"
++ #include "fftw3.h"
++ 
++-#define CONCAT(prefix, name) prefix ## name
+++#define CONCAT(prefix, name) $FFTW_FUNC_PREFIX ## prefix ## name
++ #if defined(BENCHFFT_SINGLE)
++ #define FFTW(x) CONCAT(fftwf_, x)
++ #elif defined(BENCHFFT_LDOUBLE)
++diff -ur fftw-3.3.4/tools/fftw-wisdom.c fftw-3.3.4/tools/fftw-wisdom.c
++--- fftw-3.3.4/tools/fftw-wisdom.c	2014-03-04 10:41:03.000000000 -0800
+++++ fftw-3.3.4/tools/fftw-wisdom.c	2016-04-20 01:40:41.000000000 -0700
++@@ -15,7 +15,7 @@
++    extern int threads_ok;
++ #endif
++ 
++-#define CONCAT(prefix, name) prefix ## name
+++#define CONCAT(prefix, name) $FFTW_FUNC_PREFIX ## prefix ## name
++ #if defined(BENCHFFT_SINGLE)
++ #define FFTW(x) CONCAT(fftwf_, x)
++ #elif defined(BENCHFFT_LDOUBLE)
+diff --git ups/eupspkg.cfg.sh ups/eupspkg.cfg.sh
+index e9e89d4..aa2f4f5 100755
+--- ups/eupspkg.cfg.sh
++++ ups/eupspkg.cfg.sh
+@@ -1,59 +1,221 @@
+ # EupsPkg config file. Sourced by 'eupspkg'
+ 
++#
++# Note: FFTW_FUNC_PREFIX, FFTW_LIB_PREFIX, and FFTW_SHARED environmental variables are
++# defined in the .table file
++#
++# FIXME: We define them here again (make sure they're kept in sync!!).  This
++# is a workaround for lsstsw nor running setup before eupspkg prep.  Remove
++# it once the lsstsw issue is fixed.
++#
++export FFTW_FUNC_PREFIX="lsst_"
++export FFTW_LIB_PREFIX=""
++export FFTW_SHARED=0
++
++if [[ $FFTW_SHARED == 1 ]]; then
++	ENABLE_SHARED="--enable-shared"
++else
++	CFLAGS+="-fPIC"
++fi
++
++if [[ $OSTYPE = darwin* ]]; then
++	LIBEXT=dylib
++	LEADING_UNDERSCORE=_
++	_rename_libraries() { _rename_libraries_osx; }
++else
++	LIBEXT=so
++	LEADING_UNDERSCORE=
++	_rename_libraries() { _rename_libraries_linux; }
++fi
++
++prep()
++{
++	#
++	# Clone ourselves into a sp and dp directory (for single and double precision)
++	#
++	sed 's|\$FFTW_FUNC_PREFIX'"|$FFTW_FUNC_PREFIX|g" patches/lsst_prefix_fftw.patch.template > patches/lsst_prefix_fftw.patch
+ 
+-prep(){
+-	#Make directories to hold the source for single and double
+-	#precision libraries
+-	if [ -d "sp" ]; then
+-		rm -rf sp
+-	fi
+-	if [  -d "dp" ]; then
+-		rm -rf dp
+-	fi
+-	if [ -f "fftw.pc.in" ]; then
+-		rm fftw.pc.in
+-	fi
+-	mkdir sp dp
+ 	default_prep
+-	#Copy the contents into each directory, excluding the .git directory.
+-	#eupspkg should use the .git directory from the parent to obtain version information.
+-	rsync -a --exclude=".git" --exclude="sp" --exclude="dp" ./ sp/ #single precision
+-	rsync -a --exclude=".git" --exclude="sp" --exclude="dp" ./ dp/ #double precision
+-	#delete everything but the sp, dp, and required ups
+-	#files/directories
+-	rm -rf $(ls |grep -v ^ups* |grep -v fftw.pc.in |grep -v dp |grep\
+-	-v sp|grep -v ^[.]*$|grep -v _build.log)
++
++	rm -rf sp dp
++
++	# Copy everything into a temporary directory outside this one (to
++	# avoid infinite recursion with cp), then move it to sp/ and
++	# duplicate to dp/
++	TMPCOPY=$(mktemp -d -t XXXXX)
++	cp -a . "$TMPCOPY/sp"
++	rm -rf "$TMPCOPY/sp/"{.git,_eupspkg,upstream,patches,ups,_build.log}
++	mv "$TMPCOPY/sp" .
++	cp -a sp dp
++
++	# Clean up the local dir (and try to do it relatively safely)
++	# by removing only files & directories found in the expanded dir
++	ls sp/ | while read FN; do
++		rm -rf "$PWD/$FN"
++	done
++}
++
++config()
++{
++	( cd sp && ./configure CFLAGS="$CFLAGS" $ENABLE_SHARED --program-prefix=$FFTW_LIB_PREFIX --prefix $PREFIX --disable-fortran --libdir=$PREFIX/lib --enable-single )
++	( cd dp && ./configure CFLAGS="$CFLAGS" $ENABLE_SHARED --program-prefix=$FFTW_LIB_PREFIX --prefix $PREFIX --disable-fortran --libdir=$PREFIX/lib )
++}
++
++build()
++{
++	( cd sp && make )
++	( cd dp && make )
++}
++
++_rename_libraries_osx()
++{
++	(
++		cd "$PREFIX/lib"
++
++		# drop symlinks
++		rm -f {libfftw3,libfftw3f}.dylib
++
++		# rename static & dynamic libraries
++		for NAME in lib*.{dylib,a,la}; do
++			mv "$NAME" lib""$FFTW_LIB_PREFIX""${NAME#lib}
++		done
++
++		# change install names of dynamic libraries
++		for NAME in lib*.dylib; do
++			install_name_tool -id $NAME $NAME
++		done
++
++		# change the names within libtool .la files
++		for NAME in lib*.la; do
++			sed -i "" "s|libfftw3|lib${FFTW_LIB_PREFIX}fftw3|g" $NAME
++		done
++		
++		# fixup pkgconfigs
++		(
++			cd pkgconfig
++			for NAME in *.pc; do
++				sed -i "" "s|-lfftw3|-l${FFTW_LIB_PREFIX}fftw3|g" $NAME
++				mv $NAME ${FFTW_LIB_PREFIX}$NAME
++			done
++		)
++
++		# re-establish the symlinks
++		ln -s lib${FFTW_LIB_PREFIX}fftw3.3.dylib  lib${FFTW_LIB_PREFIX}fftw3.dylib
++		ln -s lib${FFTW_LIB_PREFIX}fftw3f.3.dylib lib${FFTW_LIB_PREFIX}fftw3f.dylib
++
++	)
++
++	# fix library names in .cfg files
++	sed -i "" "s|\"fftw3\"|\"${FFTW_LIB_PREFIX}fftw3\"|"   "$PREFIX/ups/fftw.cfg"
++	sed -i "" "s|\"fftw3f\"|\"${FFTW_LIB_PREFIX}fftw3f\"|" "$PREFIX/ups/fftw.cfg"
+ }
+ 
+-config(){
+-	cd sp
+-	./configure --prefix $PREFIX --disable-fortran --enable-shared --libdir=$PREFIX/lib --enable-single
+-	cd ../dp
+-	./configure --prefix $PREFIX --disable-fortran --enable-shared --libdir=$PREFIX/lib
++_rename_libraries_linux()
++{
++	(
++		cd "$PREFIX/lib"
++
++		# drop symlinks
++		rm -f {libfftw3,libfftw3f}.so{,.3}
++
++		# rename static & dynamic libraries
++		if [[ -f lib${FFTW_LIB_PREFIX}fftw3.so.* ]]; then
++			SOGLOB="*.so.*"
++		fi
++		for NAME in lib*.{a,la} $SOGLOB; do
++			mv "$NAME" lib""$FFTW_LIB_PREFIX""${NAME#lib}
++		done
++
++		# change the names within libtool .la files
++		for NAME in lib*.la; do
++			sed -i "s|libfftw3|lib${FFTW_LIB_PREFIX}fftw3|g" $NAME
++		done
++		
++		# fixup pkgconfigs
++		(
++			cd pkgconfig
++			for NAME in *.pc; do
++				sed -i "s|-lfftw3|-l${FFTW_LIB_PREFIX}fftw3|g" $NAME
++				mv $NAME ${FFTW_LIB_PREFIX}$NAME
++			done
++		)
++
++		# re-establish the symlinks
++		if [[ -f lib${FFTW_LIB_PREFIX}fftw3.so.* ]]; then
++			ln -s lib${FFTW_LIB_PREFIX}fftw3.so.*  lib${FFTW_LIB_PREFIX}fftw3.so
++			ln -s lib${FFTW_LIB_PREFIX}fftw3.so.*  lib${FFTW_LIB_PREFIX}fftw3.so.3
++		fi
++		if [[ -f lib${FFTW_LIB_PREFIX}fftw3f.so.* ]]; then
++			ln -s lib${FFTW_LIB_PREFIX}fftw3f.so.* lib${FFTW_LIB_PREFIX}fftw3f.so
++			ln -s lib${FFTW_LIB_PREFIX}fftw3f.so.* lib${FFTW_LIB_PREFIX}fftw3f.so.3
++		fi
++
++		# change install names of dynamic libraries
++		if [[ -f lib${FFTW_LIB_PREFIX}fftw3f.so ]]; then
++			for NAME in lib*.so.3; do
++				patchelf --set-soname $NAME $NAME
++			done
++		fi
++
++	)
++
++	# fix library names in .cfg files
++	sed -i "s|\"fftw3\"|\"${FFTW_LIB_PREFIX}fftw3\"|"   "$PREFIX/ups/fftw.cfg"
++	sed -i "s|\"fftw3f\"|\"${FFTW_LIB_PREFIX}fftw3f\"|" "$PREFIX/ups/fftw.cfg"
+ }
+ 
++_fixup_headers()
++{
++	# Generate macro files
++	_gen_hdr()
++	{
++		local DATATYPE=$1
++
++		echo "/* ----------------- */"
++		for TYPE in plan_s plan iodim iodim64 write_char_func read_char_func; do
++			echo "#define fftw${DATATYPE}_$TYPE ${FFTW_FUNC_PREFIX}fftw${DATATYPE}_${TYPE}"
++		done
++		echo "/* ----------------- */"
+ 
+-build() {
+-	cd sp
+-	make
+-	cd ../dp
+-	make
+-	cd ../
+-	#This next bit is here because lsstsw expects to see a _build.log
+-	#in the directory. It doesn't seem to be able to handle multiple
+-	#subdirectoreis with source in it
+-	if [ -f dp/_build.log ]; then
+-		cp dp/_build.log ./
+-	fi
++		nm "$PREFIX"/lib/lib${FFTW_LIB_PREFIX}fftw3.a | grep " ${LEADING_UNDERSCORE}${FFTW_FUNC_PREFIX}" | grep -E " (S|T) " | cut -d ' ' -f 3 | \
++			while read SYMBOL; do
++				FUNC=${SYMBOL#${LEADING_UNDERSCORE}${FFTW_FUNC_PREFIX}fftw_}
++
++				ALIAS=fftw${DATATYPE}_${FUNC}
++				SYMBOL=${FFTW_FUNC_PREFIX}${ALIAS}
++
++				echo "#define $ALIAS       $SYMBOL"
++			done
++	}
++
++	cat >> "$PREFIX/include/fftw3.h" <<-EOF
++
++	#ifndef __FFTW3_LSST_SYMBOL_ALIASES
++	#define __FFTW3_LSST_SYMBOL_ALIASES
++
++EOF
++	for DATATYPE in "" f l; do
++		FN="_${FFTW_FUNC_PREFIX}fftw${DATATYPE}_map.h"
++
++		_gen_hdr "$DATATYPE" > "$PREFIX"/include/$FN
++		echo "#include \"$FN\"" >> "$PREFIX/include/fftw3.h"
++	done
++
++	cat >> "$PREFIX/include/fftw3.h" <<-EOF
++
++	#endif /* __FFTW3_LSST_SYMBOL_ALIASES */
++EOF
+ }
+ 
+ install()
+ {
+ 	clean_old_install
+-	cd sp
+-	make install
+-	cd ../dp
+-	make install
+-	cd ../
++
++	( cd sp && make install )
++	( cd dp && make install )
++
+ 	install_ups
++
++	test ! -z "$FFTW_LIB_PREFIX" && _rename_libraries
++	_fixup_headers
+ }
+diff --git ups/fftw.table ups/fftw.table
+index 9224ecf..a31f3ec 100644
+--- ups/fftw.table
++++ ups/fftw.table
+@@ -2,3 +2,13 @@ envPrepend(PATH, ${PRODUCT_DIR}/bin)
+ envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+ envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+ envPrepend(LSST_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
++
++#
++# NOTE: These have been set in eupspkg.cfg.sh as well to work around an
++# lsstsw issue with the product not being setup-ed when `eupspkg prep` is
++# run.  They should be removed from there once that's dealt with. In the
++# meantime, make sure they're kept in sync!!!
++#
++envSet(FFTW_FUNC_PREFIX, "lsst_")
++envSet(FFTW_LIB_PREFIX, "")
++envSet(FFTW_SHARED, 0)
