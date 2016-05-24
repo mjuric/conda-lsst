@@ -68,6 +68,7 @@ fi
 
 echo "Patching main_search.py in conda."
 patch -p0 < ${PWD}/etc/patches/main_search.py.patch
+echo
 
 echo "Miniconda has been installed in $PWD/miniconda. Add it to your path:"
 echo
