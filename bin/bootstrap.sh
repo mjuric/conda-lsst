@@ -66,8 +66,12 @@ if ! conda list lsst-git-lfs-config >/dev/null; then
 	rm -f .bootstrap.msg
 fi
 
+echo "Patching main_search.py in conda."
+patch -p0 < ${PWD}/etc/patches/main_search.py.patch
+echo
+
 echo "Miniconda has been installed in $PWD/miniconda. Add it to your path:"
 echo
-echo "  export PATH=\"$PWD/miniconda/bin:\$PATH\""
+echo "export PATH=\"\${PWD}/bin:\${PWD}/miniconda/bin:\${PATH}\""
 echo
 echo "and continue."
