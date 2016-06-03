@@ -149,8 +149,8 @@ dependencies:
 #
 pin_versions:
   numpy:
-    build: "==1.9"
-    run:   ">=1.9"
+    build: "==1.10.4"
+    run:   ">=1.10.4"
   python:
     build: "2.7.*"
     run:   "2.7.*"
