@@ -50,22 +50,6 @@ else
 	echo
 fi
 
-#
-# Add git-lfs support
-#
-export PATH="$PWD/miniconda/bin:$PATH"
-if ! conda list lsst-git-lfs-config >/dev/null; then
-	echo "Building and installing git-lfs and lsst-git-lfs-config. Patience please..."
-	echo
-
-	conda build etc/recipes/git-lfs				>>.bootstrap.msg 2>&1
-	conda build etc/recipes/lsst-git-lfs-config		>>.bootstrap.msg 2>&1
-
-	conda install -q --yes --use-local lsst-git-lfs-config	>>.bootstrap.msg 2>&1
-
-	rm -f .bootstrap.msg
-fi
-
 echo "Miniconda has been installed in $PWD/miniconda. Add it to your path:"
 echo
 echo "  export PATH=\"$PWD/miniconda/bin:\$PATH\""
