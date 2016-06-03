@@ -52,6 +52,6 @@ fi
 
 echo "Miniconda has been installed in $PWD/miniconda. Add it to your path:"
 echo
-echo "  export PATH=\"$PWD/miniconda/bin:\$PATH\""
+echo "  export PATH=\"\${PWD}/bin:\${PWD}/miniconda/bin:\${PATH}\""
 echo
 echo "and continue."
