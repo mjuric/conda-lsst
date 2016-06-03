@@ -139,12 +139,24 @@ class RecipeDB(object):
 			for suffix in suffixes:
 				if fn.endswith(suffix):
 					break
+
+				# Special handling for meta.yaml, to work around the change introduced in conda-build 1.20.3
+				# https://github.com/conda/conda-build/commit/b4ec0e0659d8f376042d4fc391616bf235996cf5 where
+				# meta.yaml is now stored in the recipe dir as meta.yaml.template
+				if fn.endswith('/meta.yaml.template'):
+					break
 			else:
 				continue
 
 			mm = hashlib.sha1()
 			with open(fn) as fp:
 				rel_fn = fn[len(ignore_prefix):]
+
+				# Special handling for meta.yaml, to work around the change introduced in conda-build 1.20.3
+				# https://github.com/conda/conda-build/commit/b4ec0e0659d8f376042d4fc391616bf235996cf5 where
+				# meta.yaml is now stored in the recipe dir as meta.yaml.template
+				if rel_fn == 'meta.yaml.template':
+					rel_fn = 'meta.yaml'
 
 				# Special handling of some files:
 				if rel_fn == 'meta.yaml':
