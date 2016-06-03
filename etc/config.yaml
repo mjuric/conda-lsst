@@ -83,8 +83,8 @@ dependencies:
     run:   [ cython, recipe/setuptools-git ]
     build: [ cython, recipe/setuptools-git ]
   palpy:
-    run:   [ cython, numpy ]
-    build: [ cython, numpy ]
+    run:   [ cython ]
+    build: [ cython ]
   sncosmo:
     run:   [ recipe/astropy-helpers, astropy, cython, scipy ]
     build: [ recipe/astropy-helpers, astropy, cython, scipy ]
@@ -107,41 +107,11 @@ dependencies:
     run:   [ requests ]
     build: [ requests ]
   healpy:
-    run:   [ numpy, six ]
-    build: [ numpy, six ]
+    run:   [ six ]
+    build: [ six ]
   daf_persistence:
     run:   [ pyyaml ]
     build: [ pyyaml ]
-  coadd_utils:
-    run:   [ numpy ]
-    build: [ numpy ]
-  meas_base:
-    run:   [ numpy ]
-    build: [ numpy ]
-  meas_algorithms:
-    run:   [ numpy ]
-    build: [ numpy ]
-  meas_deblender:
-    run:   [ numpy ]
-    build: [ numpy ]
-  meas_modelfit:
-    run:   [ numpy ]
-    build: [ numpy ]
-  meas_extensions_psfex:
-    run:   [ numpy ]
-    build: [ numpy ]
-  ip_diffim:
-    run:   [ numpy ]
-    build: [ numpy ]
-  ip_isr:
-    run:   [ numpy ]
-    build: [ numpy ]
-  coadd_chisquared:
-    run:   [ numpy ]
-    build: [ numpy ]
-  shapelet:
-    run:   [ numpy ]
-    build: [ numpy ]
   mariadb:
     run:   [ openssl ]
     build: [ cmake, openssl ]
