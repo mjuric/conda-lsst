@@ -132,6 +132,9 @@ dependencies:
     build: [ "recipe/lsst-git-lfs-config" ]
   testdata_subaru:
     build: [ "recipe/lsst-git-lfs-config" ]
+  sims_movingObjects:
+    run:   [ pandas, numexpr ]
+    build: [ pandas, numexpr ]
   oorb:
     build: [ "gcc ==4.8.5" ]
     run:   [ "libgcc >=4.8.5" ]
