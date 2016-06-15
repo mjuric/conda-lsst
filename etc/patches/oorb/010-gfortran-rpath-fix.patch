@@ -1,0 +1,88 @@
+diff --git configure configure
+index 25a9df3..9447166 100755
+--- configure
++++ configure
+@@ -126,6 +126,14 @@ elif [[ $1 == gfortran ]] ; then
+     echo 'FC_INC = $(FC_INC_GFORTRAN)' >> $include_file
+     echo 'FC_SHARED = $(FC_SHARED_GFORTRAN)' >> $include_file
+ 
++    if [[ $OSTYPE == darwin* ]]; then
++        # OS X: Autodetect any flags needed to correctly set up the RPATH
++        # This is mostly needed for Anaconda-delivered gfortran that has
++        # @rpath in its runtime libraries' install_name
++        echo 'RPATHOPTS = $(shell $(SHELL) '"$PWD"'/get-rpath.sh gfortran)' >> $include_file
++        echo 'FCOPTIONS += $(RPATHOPTS)' >> $include_file
++    fi
++
+ else
+ 
+     echo Erroneous compiler: $1
+diff --git data/JPL_ephemeris/Makefile data/JPL_ephemeris/Makefile
+index edd3cf3..604ab2e 100644
+--- data/JPL_ephemeris/Makefile
++++ data/JPL_ephemeris/Makefile
+@@ -93,11 +93,11 @@ test : $(TESTER)
+ 
+ # Compile ascii-to-binary converter:
+ $(CONVERTER): modules $(CONV_SRC)
+-	$(FC) -o $(CONVERTER) $(FC_INC)../../modules ../../$(MODULEPATH)/*.o $(CONV_SRC)
++	$(FC) -o $(CONVERTER) $(FCOPTIONS) $(FC_INC)../../modules ../../$(MODULEPATH)/*.o $(CONV_SRC)
+ 
+ # Compile tester:
+ $(TESTER): modules $(TEST_SRC)
+-	$(FC) -o $(TESTER) $(FC_INC)../../modules ../../$(MODULEPATH)/*.o $(TESTER_SRC)
++	$(FC) -o $(TESTER) $(FCOPTIONS) $(FC_INC)../../modules ../../$(MODULEPATH)/*.o $(TESTER_SRC)
+ 
+ # Build input file for ascii-to-binary converter:
+ $(EPH_INPUT):
+diff --git get-rpath.sh get-rpath.sh
+new file mode 100755
+index 0000000..d8bbafe
+--- /dev/null
++++ get-rpath.sh
+@@ -0,0 +1,32 @@
++#!/bin/bash
++# Hack for gfortran compilers on El Capitan which have @rpath
++# in their install_name.
++#
++# Prints out the rpath flags that should be passed to the compiler
++# to add that rpath to the binaries we generate.
++#
++# Injected into the makefiles by ./configure
++#
++
++if [[ "$OSTYPE" != darwin* ]]; then
++	# Only relevant on OS X
++	exit -1;
++fi
++
++if [[ "$1" != gfortran ]]; then
++	# Only know how to do this for gfortran
++	exit -1;
++fi
++
++# Exit if no gfortran on the path
++which "$1" >/dev/null 2>&1 || exit -1;
++
++LIBDIR="$(dirname $(dirname $(which gfortran)))/lib"
++LIBGFORTRAN="$LIBDIR/libgfortran.3.dylib"
++if [[ -f "$LIBGFORTRAN" ]]; then
++	INSTALL_NAME="$(otool -D $LIBGFORTRAN | tail -n 1)"
++	if [[ $INSTALL_NAME == @rpath/* ]]; then
++		RPATHFLAGS="-Wl,-rpath,$LIBDIR"
++		echo "$RPATHFLAGS"
++	fi
++fi
+diff --git python/Makefile python/Makefile
+index 875e1f8..fcb3c95 100644
+--- python/Makefile
++++ python/Makefile
+@@ -31,7 +31,7 @@ include ../Makefile.include
+ F2PY := f2py
+ ifneq ($(LDFLAGS),)
+     ifeq ($(LIBEXT),dylib)
+-        F2PY := LDFLAGS="-undefined dynamic_lookup -bundle $(LDFLAGS)" $(F2PY)
++        F2PY := LDFLAGS="-undefined dynamic_lookup -bundle $(RPATHOPTS) $(LDFLAGS)" $(F2PY)
+     else
+         F2PY := LDFLAGS="$(FC_SHARED_GFORTRAN) $(LDFLAGS)" $(F2PY)
+     endif
