@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -e
+
+usage()
+{
+	echo "Create a conda-lsst patch by producing a diff between <from_branch> amd <to_branch>"
+	echo
+	echo "    usage: make-patch <patch_name> [from_branch=master [to_branch=HEAD]]"
+	echo
+	echo "Example:"
+	echo
+	echo "    \`make-patch foo.patch master fix-foo'"
+	echo
+	echo "will create foo.patch in etc/patches/<product>."
+	echo
+}
+
+[[ $# -lt 1 ]] && { usage 1>&2; exit -1; }
+
+
+PATCHNAME="$1"
+
+FROM="$2"
+[[ -z "$FROM" ]] && FROM=master
+git rev-parse --verify --quiet "$FROM" >/dev/null 2>&1 || { echo "Ref $FROM does not exist."; exit -1; }
+
+TO="$3"
+[[ -z "$TO" ]] && TO=HEAD
+git rev-parse --verify --quiet "$TO" >/dev/null  2>&1 || { echo "Ref $TO does not exist."; exit -1; }
+
+
+# Deduce the product name by finding ups/<product>.table
+PRODUCT=$(basename $(git rev-parse --show-toplevel)/ups/*.table .table)
+[[ -z $PRODUCT ]] && { echo "Could not deduce the product name. Exiting"; exit -1; }
+
+# Find the destination
+PATCHBASEDIR=$(dirname $(dirname $(which conda-lsst)))/etc/patches
+[[ -d $PATCHBASEDIR ]] || { echo "Could not find the destination conda-lsst patch dir (deduced $PATCHBASEDIR, but it doesn't exist)."; exit -1; }
+
+# Make sure patchdir exists
+PATCHDIR="$PATCHBASEDIR/$PRODUCT"
+mkdir -p "$PATCHDIR"
+
+# Create the patch
+PATCHFILE="$PATCHDIR/$PATCHNAME.patch"
+
+echo "Diffing $FROM..$TO:"
+git diff --stat "$FROM..$TO"
+git diff --no-prefix "$FROM..$TO" > $PATCHFILE
+echo "Created $PATCHFILE ."
