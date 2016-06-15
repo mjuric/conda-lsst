@@ -17,6 +17,20 @@ cd "$(dirname $BASH_SOURCE)"
 # the name of the current platform (Linux or Darwin)
 PLATFORM=$(uname)
 
+log-output()
+{
+	# Starting with v4.1.0, conda began sending output to the
+	# terminal (tty) instead of stdout. We use the 'script' command
+	# to capture it.
+
+	# Account for GNU vs. BSD differences in the script command
+	if [[ $OSTYPE == darwin* ]]; then
+		script -q "$@" > /dev/null 2>&1
+	else
+		script -e -q -c "$*" > /dev/null 2>&1
+	fi
+}
+
 rebuild()
 {
 	# Conda name/version
@@ -37,7 +51,7 @@ rebuild()
 			echo -n " (ver $VERSION)   [from static recipe] ... "
 		fi
 
-		if conda build . > _build.log 2>&1; then
+		if log-output _build.log conda build .; then
 			touch .done
 			echo 'OK'
 		else
