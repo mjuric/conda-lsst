@@ -140,11 +140,9 @@ dependencies:
     run:   [ "libgcc >=4.8.5" ]
   "*":
     run:
-      - "nomkl                         # [not osx]"
       - recipe/eups >=2.0.2
       - "libgcc >=4.8.5                # [not osx]"
     build:
-      - "nomkl                         # [not osx]"
       - recipe/eups >=2.0.2
       - "gcc ==4.8.5                   # [not osx]"
       - "patchelf ==0.8                # [not osx]"
