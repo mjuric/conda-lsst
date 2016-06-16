@@ -246,7 +246,7 @@ class Config(object):
 					newDeps = []
 					for depSpec in deps[type_]:
 						# Parse '[type/]name [verspec] [#selector]'
-						res = re.match(r'^(?:(\w+)/)?((\S+)(?:\s+([^ ]+)(?:\s+(#.*))?)?)', depSpec)
+						res = re.match(r'^(?:(\w+)/)?(([A-Za-z0-9_-]+)(?:\s*([^ \t#]+)?(?:\s*(#.*))?)?)', depSpec)
 						pkgType, pkgSpec, pkgName, verSpec, selector = res.groups()
 						#print "XXXX", (pkgType, pkgSpec, pkgName, verSpec, selector)
 						if pkgType == 'eups':
