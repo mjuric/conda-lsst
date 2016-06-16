@@ -1,0 +1,13 @@
+diff --git include/lsst/base/library.h include/lsst/base/library.h
+index f13c130..fa91dc1 100644
+--- include/lsst/base/library.h
++++ include/lsst/base/library.h
+@@ -53,7 +53,7 @@ T* loadSymbol(
+     std::string const& symName          ///< Symbol name
+     )
+ {
+-    void* lib = dlopen(getLibraryFilename(libName).c_str(), RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND);
++    void* lib = dlopen(getLibraryFilename(libName).c_str(), RTLD_LAZY | RTLD_DEEPBIND);
+     if (!lib) {
+         throw LibraryException(libName);
+     }
