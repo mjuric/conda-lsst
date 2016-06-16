@@ -25,9 +25,23 @@ log-output()
 
 	# Account for GNU vs. BSD differences in the script command
 	if [[ $OSTYPE == darwin* ]]; then
+		# OS X flavor of script
 		script -q "$@" > /dev/null 2>&1
 	else
-		script -e -q -c "$*" > /dev/null 2>&1
+		# Linux flavor of script
+		OUTFILE="$1"
+		shift
+
+		# Assuming RHEL5-compatible version of script
+		# Using a more modern version, all of the below could be replaced
+		# with something like:
+		#     script -e -q -c "$*" $OUTFILE > /dev/null 2>&1
+		SUCCFILE=$(mktemp succfile.XXXXXXX)
+		rm -f "$SUCCFILE"
+
+		script -q -c "$* && touch \"$SUCCFILE\"" $OUTFILE > /dev/null 2>&1
+		[[ -f "$SUCCFILE" ]] && rm -f "$SUCCFILE" || /bin/false
+
 	fi
 }
 
