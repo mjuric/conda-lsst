@@ -394,6 +394,23 @@ git diff --no-prefix master > mypatch.patch
 ```
 to have the output at the `-p0` level.
 
+We recommend to maintain conda-lsst patches on branches in the package's
+repository (e.g. a `conda-patches` branch). To make it easy to create a
+patch from a brancg in a git repo, use the `make-patch` utility as:
+```
+make-patch patch-name.patch master conda-patches
+```
+This creates a file `patch-name.patch` with a diff between
+`master..conda-patches` in the `etc/patches/<product>/` directory, where
+`<product>` is automatically inferred from the name of the `.table` file in
+the git repo's `ups/` directory. If you omit the third argument to
+`make-patch`, `HEAD` is assumed. If you omit the second argument, `master`
+is assumed. Therefore, assuming you're on `conda-patches` branch, running:
+```
+make-patch patch-name.patch
+```
+is equivalent to the invocation above.
+
 Note: there is currently no way to declare a patch should only be applied
 for certain commits (or commits coming before a certain commit).
 

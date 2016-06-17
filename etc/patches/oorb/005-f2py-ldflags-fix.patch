@@ -1,0 +1,32 @@
+diff --git python/Makefile python/Makefile
+index 335e549..875e1f8 100644
+--- python/Makefile
++++ python/Makefile
+@@ -25,6 +25,18 @@
+ include ../make.config
+ include ../Makefile.include
+ 
++# Work around f2py's "feature" where it doesn't add proper shared library
++# linker flags if LDFLAGS are set. See https://github.com/numpy/numpy/issues/1171
++# for more detail.
++F2PY := f2py
++ifneq ($(LDFLAGS),)
++    ifeq ($(LIBEXT),dylib)
++        F2PY := LDFLAGS="-undefined dynamic_lookup -bundle $(LDFLAGS)" $(F2PY)
++    else
++        F2PY := LDFLAGS="$(FC_SHARED_GFORTRAN) $(LDFLAGS)" $(F2PY)
++    endif
++endif
++
+ all: liboorb.$(LIBEXT)
+ 
+ liboorb.o: liboorb.f90
+@@ -46,7 +58,7 @@ liboorb.$(LIBEXT): modules classes main wrapper.o liboorb.o
+ 	../$(MODULEPATH)/*.o
+ 
+ pyoorb: liboorb
+-	f2py -m pyoorb pyoorb.f90 --build-dir ./build -c --noarch -loorb -L../lib \
++	$(F2PY) -m pyoorb pyoorb.f90 --build-dir ./build -c --noarch -loorb -L../lib \
+ 	--f90exec=$(FC) --f90flags="$(FC_INC)../$(CLASSPATH) $(FC_INC)../$(MODULEPATH)" 
+ 
+ pyoorb.o: liboorb

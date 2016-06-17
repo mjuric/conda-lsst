@@ -22,11 +22,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
 	# to work
 	export LDFLAGS="$LDFLAGS -headerpad_max_install_names"
 
-#	# Make sure binaries (e.g., tests) get built with enough
-#	# padding in the header for the install_name_tool to work
-#	# (sconsUtils adds the contents of this variable to CCFLAGS and LINKFLAGS)
-#	export ARCHFLAGS='-headerpad_max_install_names'
-
+	# Work around a nasty XCode bug (see http://www.openradar.me/25313838)
 	if [[ "$(ld -v 2>&1 | grep -Eow 'PROJECT:.*')" == "PROJECT:ld64-264.3.101" ]]; then
 		echo "You're running XCode 7.3, with a broken linker (version ld64-264.3.101): implementing a workaround for the @rpath expansion bug".
 		XCODE_73_RPATH_BUG=1
